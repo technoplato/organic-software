@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.instantdb.com)",
+      "WebFetch(domain:docs.expo.dev)",
+      "WebFetch(domain:bun.sh)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:instantdb.com)",
+      "Bash(bun:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

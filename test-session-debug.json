@@ -1,0 +1,465 @@
+{
+  "sessionHistory": [
+    "7e3e80f1-39a4-4789-9f87-df17994a4863",
+    "6f518e5a-0fa9-4cd5-b37d-6ad6fccebd4c"
+  ],
+  "responses": [
+    "OK",
+    "OK",
+    "APPLE and 42"
+  ],
+  "allMessages": [
+    {
+      "type": "system",
+      "subtype": "init",
+      "cwd": "/Users/mlustig/dev/work/sources/side-projects/remote-organic-software",
+      "session_id": "7e3e80f1-39a4-4789-9f87-df17994a4863",
+      "tools": [
+        "Task",
+        "Bash",
+        "Glob",
+        "Grep",
+        "LS",
+        "ExitPlanMode",
+        "Read",
+        "Edit",
+        "MultiEdit",
+        "Write",
+        "NotebookEdit",
+        "WebFetch",
+        "TodoWrite",
+        "BashOutput",
+        "KillBash",
+        "mcp__instant__create-app",
+        "mcp__instant__get-apps",
+        "mcp__instant__get-app",
+        "mcp__instant__get-schema",
+        "mcp__instant__get-perms",
+        "mcp__instant__plan-schema-push",
+        "mcp__instant__push-schema",
+        "mcp__instant__push-perms"
+      ],
+      "mcp_servers": [
+        {
+          "name": "instant",
+          "status": "connected"
+        }
+      ],
+      "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+      "permissionMode": "bypassPermissions",
+      "slash_commands": [
+        "add-dir",
+        "agents",
+        "clear",
+        "compact",
+        "config",
+        "cost",
+        "doctor",
+        "exit",
+        "help",
+        "ide",
+        "init",
+        "mcp",
+        "memory",
+        "migrate-installer",
+        "model",
+        "output-style",
+        "output-style:new",
+        "pr-comments",
+        "release-notes",
+        "resume",
+        "status",
+        "statusline",
+        "review",
+        "security-review",
+        "terminal-setup",
+        "vim",
+        "permissions",
+        "hooks",
+        "export",
+        "bashes"
+      ],
+      "apiKeySource": "ANTHROPIC_API_KEY",
+      "messageNumber": 1
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "id": "msg_bdrk_01JEUNucDZ3imXeGCzcfnbcA",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-4-20250514",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "The user is asking me to remember the word \"APPLE\" and just say OK. This is a simple request - they want me to acknowledge that I'll remember this word and respond with just \"OK\". I should follow their instruction exactly.",
+            "signature": "EooDCkgIBhABGAIqQCwOX8BD6URdsS1uU1B1i/bpmBMhP8o2yZWiTlQ+4ICAx6Yj+L1lgiQ5UYvtgTdnmzvetDkQE4cBIzl4qtdrBNYSDC3X1ruJ80OoHFVITRoMluRfBs5YAZ2WzypAIjCrI+V/VHMxUWRKIN2yVvGDThHd1C0z328gEDoolT9vmlQWL41jFM6KMKgqXTyymoMq7wFADl/1elnK4yRreF9HRQ0TAhyg/AjUb3/y52GfRp78ANVBOohKoKoqrRk5lx2H+deM2N8t22kbBRDOyKOukReU5isSTZItH+Mfy+70Q9i/SQnuVKmw6b229pgjCfkjdZaCb2LDoYiKVxtfTjE/tmJrX+Fwm4JbIuXR9FRQ/lIcqsnIXK9LkDP5mPSoOrCnFpifC7ri9982dVfjwIVHXqeKipvPf/JwxwNxWtdCAttkyNf/j+fqZCVu2KuuyvyVpCX35EALncTQTbzH+NeuolFsrIK6D+cFroplPk6S9cFjcXYKI99dL6pXWl88W6ecGBgB"
+          }
+        ],
+        "stop_reason": null,
+        "stop_sequence": null,
+        "usage": {
+          "input_tokens": 10,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 18968,
+          "output_tokens": 62
+        }
+      },
+      "parent_tool_use_id": null,
+      "session_id": "7e3e80f1-39a4-4789-9f87-df17994a4863",
+      "messageNumber": 1
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "id": "msg_bdrk_01JEUNucDZ3imXeGCzcfnbcA",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-4-20250514",
+        "content": [
+          {
+            "type": "text",
+            "text": "OK"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_sequence": null,
+        "usage": {
+          "input_tokens": 10,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 18968,
+          "output_tokens": 62
+        }
+      },
+      "parent_tool_use_id": null,
+      "session_id": "7e3e80f1-39a4-4789-9f87-df17994a4863",
+      "messageNumber": 1
+    },
+    {
+      "type": "result",
+      "subtype": "success",
+      "is_error": false,
+      "duration_ms": 2669,
+      "duration_api_ms": 3630,
+      "num_turns": 2,
+      "result": "OK",
+      "session_id": "7e3e80f1-39a4-4789-9f87-df17994a4863",
+      "total_cost_usd": 0.006855999999999999,
+      "usage": {
+        "input_tokens": 10,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 18968,
+        "output_tokens": 66,
+        "server_tool_use": {
+          "web_search_requests": 0
+        },
+        "service_tier": "standard"
+      },
+      "permission_denials": [],
+      "messageNumber": 1
+    },
+    {
+      "type": "system",
+      "subtype": "init",
+      "cwd": "/Users/mlustig/dev/work/sources/side-projects/remote-organic-software",
+      "session_id": "6f518e5a-0fa9-4cd5-b37d-6ad6fccebd4c",
+      "tools": [
+        "Task",
+        "Bash",
+        "Glob",
+        "Grep",
+        "LS",
+        "ExitPlanMode",
+        "Read",
+        "Edit",
+        "MultiEdit",
+        "Write",
+        "NotebookEdit",
+        "WebFetch",
+        "TodoWrite",
+        "BashOutput",
+        "KillBash",
+        "mcp__instant__create-app",
+        "mcp__instant__get-apps",
+        "mcp__instant__get-app",
+        "mcp__instant__get-schema",
+        "mcp__instant__get-perms",
+        "mcp__instant__plan-schema-push",
+        "mcp__instant__push-schema",
+        "mcp__instant__push-perms"
+      ],
+      "mcp_servers": [
+        {
+          "name": "instant",
+          "status": "connected"
+        }
+      ],
+      "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+      "permissionMode": "bypassPermissions",
+      "slash_commands": [
+        "add-dir",
+        "agents",
+        "clear",
+        "compact",
+        "config",
+        "cost",
+        "doctor",
+        "exit",
+        "help",
+        "ide",
+        "init",
+        "mcp",
+        "memory",
+        "migrate-installer",
+        "model",
+        "output-style",
+        "output-style:new",
+        "pr-comments",
+        "release-notes",
+        "resume",
+        "status",
+        "statusline",
+        "review",
+        "security-review",
+        "terminal-setup",
+        "vim",
+        "permissions",
+        "hooks",
+        "export",
+        "bashes"
+      ],
+      "apiKeySource": "ANTHROPIC_API_KEY",
+      "messageNumber": 2
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "id": "msg_bdrk_0197djiYcZJMSuzeMF5McZoh",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-4-20250514",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "The user is asking me to remember the number 42 and just say OK. This is a simple instruction to acknowledge and remember this information.",
+            "signature": "ErcCCkgIBhABGAIqQEgC7xPnqdbkseeCmfQDn68KgRyHVGBug1zHG9hKTyhoIHyZ2ucHDeyd7d8yeNlOjF7AT0QvgCLEzD76/6i2F9kSDGqGkf0ek0u4pgVZ8hoMndgRqrnNJZnavQWnIjCs5v7wM43rccn0vGHCE3jKyfkxnN9j1WYw3GF1HeeqH/N6RFPsrsivpjBXCVBhbXAqnAEOVLwOBCSE704eDgkJab2zWyOyn1nSzVC1ngu1KTilz9ql2gQwXryAb1IUtg2K106enleyC0gZNvAH+11eoctTn4LiLaQDwEDuEpxyeMk83YfFZCiEZsN7bsbOf2nWeXh0Hb6N1xANgALeELuUs6J6FaSeWpE4hUwdopWwDCuPdNmRydorBXekAwXtHU7Z/qtzkLwJKwpn1bOuuTQYAQ=="
+          }
+        ],
+        "stop_reason": null,
+        "stop_sequence": null,
+        "usage": {
+          "input_tokens": 10,
+          "cache_creation_input_tokens": 17,
+          "cache_read_input_tokens": 18968,
+          "output_tokens": 42
+        }
+      },
+      "parent_tool_use_id": null,
+      "session_id": "6f518e5a-0fa9-4cd5-b37d-6ad6fccebd4c",
+      "messageNumber": 2
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "id": "msg_bdrk_0197djiYcZJMSuzeMF5McZoh",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-4-20250514",
+        "content": [
+          {
+            "type": "text",
+            "text": "OK"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_sequence": null,
+        "usage": {
+          "input_tokens": 10,
+          "cache_creation_input_tokens": 17,
+          "cache_read_input_tokens": 18968,
+          "output_tokens": 42
+        }
+      },
+      "parent_tool_use_id": null,
+      "session_id": "6f518e5a-0fa9-4cd5-b37d-6ad6fccebd4c",
+      "messageNumber": 2
+    },
+    {
+      "type": "result",
+      "subtype": "success",
+      "is_error": false,
+      "duration_ms": 2764,
+      "duration_api_ms": 2754,
+      "num_turns": 5,
+      "result": "OK",
+      "session_id": "6f518e5a-0fa9-4cd5-b37d-6ad6fccebd4c",
+      "total_cost_usd": 0.00647415,
+      "usage": {
+        "input_tokens": 10,
+        "cache_creation_input_tokens": 17,
+        "cache_read_input_tokens": 18968,
+        "output_tokens": 46,
+        "server_tool_use": {
+          "web_search_requests": 0
+        },
+        "service_tier": "standard"
+      },
+      "permission_denials": [],
+      "messageNumber": 2
+    },
+    {
+      "type": "system",
+      "subtype": "init",
+      "cwd": "/Users/mlustig/dev/work/sources/side-projects/remote-organic-software",
+      "session_id": "f5cdd13d-2524-4f41-b849-ebfebd37996a",
+      "tools": [
+        "Task",
+        "Bash",
+        "Glob",
+        "Grep",
+        "LS",
+        "ExitPlanMode",
+        "Read",
+        "Edit",
+        "MultiEdit",
+        "Write",
+        "NotebookEdit",
+        "WebFetch",
+        "TodoWrite",
+        "BashOutput",
+        "KillBash",
+        "mcp__instant__create-app",
+        "mcp__instant__get-apps",
+        "mcp__instant__get-app",
+        "mcp__instant__get-schema",
+        "mcp__instant__get-perms",
+        "mcp__instant__plan-schema-push",
+        "mcp__instant__push-schema",
+        "mcp__instant__push-perms"
+      ],
+      "mcp_servers": [
+        {
+          "name": "instant",
+          "status": "connected"
+        }
+      ],
+      "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+      "permissionMode": "bypassPermissions",
+      "slash_commands": [
+        "add-dir",
+        "agents",
+        "clear",
+        "compact",
+        "config",
+        "cost",
+        "doctor",
+        "exit",
+        "help",
+        "ide",
+        "init",
+        "mcp",
+        "memory",
+        "migrate-installer",
+        "model",
+        "output-style",
+        "output-style:new",
+        "pr-comments",
+        "release-notes",
+        "resume",
+        "status",
+        "statusline",
+        "review",
+        "security-review",
+        "terminal-setup",
+        "vim",
+        "permissions",
+        "hooks",
+        "export",
+        "bashes"
+      ],
+      "apiKeySource": "ANTHROPIC_API_KEY",
+      "messageNumber": 3
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "id": "msg_bdrk_016XfKfrbnM376htcbG8z6us",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-4-20250514",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "The user asked me to remember the word \"APPLE\" and the number \"42\".",
+            "signature": "Eu4BCkgIBhABGAIqQA4QJhZ0WQlyK0i98jn9uyUdsVG3lO77vIURdNIui+nqupJ85KNFNyOi1OgYoKN4fuNIa8SwbsLPScv+KezZH94SDF+zv6DF8lOItsLOVhoMvXyJmsvdm6UhR2leIjCkeLSh5HBHafJiSgiSFxTrmrbvlc4Hn0v2cm2bHDGebfysH0jRKf/ZOo/xQKSX6NsqVH/WcZ85G+AUAOyJR7tCmDiaxBuRJT081tGcfWITf5n939rNShJstrMSCVolBAH/J22ktK4la4mHH4BwoMXofwbu7KtRfEwfXnRotKx+vD+81li0LRgB"
+          }
+        ],
+        "stop_reason": null,
+        "stop_sequence": null,
+        "usage": {
+          "input_tokens": 10,
+          "cache_creation_input_tokens": 18,
+          "cache_read_input_tokens": 18985,
+          "output_tokens": 35
+        }
+      },
+      "parent_tool_use_id": null,
+      "session_id": "f5cdd13d-2524-4f41-b849-ebfebd37996a",
+      "messageNumber": 3
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "id": "msg_bdrk_016XfKfrbnM376htcbG8z6us",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-4-20250514",
+        "content": [
+          {
+            "type": "text",
+            "text": "APPLE and 42"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_sequence": null,
+        "usage": {
+          "input_tokens": 10,
+          "cache_creation_input_tokens": 18,
+          "cache_read_input_tokens": 18985,
+          "output_tokens": 35
+        }
+      },
+      "parent_tool_use_id": null,
+      "session_id": "f5cdd13d-2524-4f41-b849-ebfebd37996a",
+      "messageNumber": 3
+    },
+    {
+      "type": "result",
+      "subtype": "success",
+      "is_error": false,
+      "duration_ms": 2593,
+      "duration_api_ms": 3651,
+      "num_turns": 8,
+      "result": "APPLE and 42",
+      "session_id": "f5cdd13d-2524-4f41-b849-ebfebd37996a",
+      "total_cost_usd": 0.006505199999999999,
+      "usage": {
+        "input_tokens": 10,
+        "cache_creation_input_tokens": 18,
+        "cache_read_input_tokens": 18985,
+        "output_tokens": 39,
+        "server_tool_use": {
+          "web_search_requests": 0
+        },
+        "service_tier": "standard"
+      },
+      "permission_denials": [],
+      "messageNumber": 3
+    }
+  ],
+  "analysis": {
+    "remembersApple": true,
+    "remembers42": true,
+    "success": true
+  }
+}

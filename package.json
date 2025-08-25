@@ -1,0 +1,33 @@
+{
+  "name": "remote-organic-software",
+  "module": "instant-message-handler.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "listen": "npx tsx instant-message-handler.ts",
+    "start": "npx tsx instant-message-handler.ts",
+    "host": "npx tsx instant-message-handler.ts",
+    "mobile": "cd mobile-app && npx tsx start",
+    "test-remote": "npx tsx test-remote-control.ts",
+    "test-e2e": "npx tsx test-e2e-flow.ts",
+    "test-automated": "./automated-test.sh",
+    "check-messages": "npx tsx check-messages.ts",
+    "sanity-check": "npx tsx sanity-check.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@anthropic-ai/bedrock-sdk": "^0.24.0",
+    "@anthropic-ai/claude-code": "^1.0.83",
+    "@anthropic-ai/sdk": "^0.60.0",
+    "@instantdb/admin": "file:/Users/mlustig/dev/tools/instant/client/packages/node",
+    "@instantdb/core": "file:/Users/mlustig/dev/tools/instant/client/packages/node",
+    "@instantdb/node": "file:/Users/mlustig/dev/tools/instant/client/packages/node",
+    "dotenv": "^17.2.1",
+    "tsx": "^4.20.4"
+  }
+}

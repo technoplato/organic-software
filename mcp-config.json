@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "instant": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.instantdb.com/mcp"]
+    }
+  }
+}
