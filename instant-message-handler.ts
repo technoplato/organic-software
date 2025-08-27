@@ -3,6 +3,8 @@
 import { init, tx, id } from "@instantdb/node";
 import { query } from "@anthropic-ai/claude-code";
 import process from "process";
+import fs from "fs";
+import path from "path";
 
 // Load environment variables from .env file
 import { config } from 'dotenv';
@@ -36,9 +38,17 @@ if (!APP_ID) {
   process.exit(1);
 }
 
-if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY === "your-api-key-here") {
-  console.error("❌ ANTHROPIC_API_KEY is required. Please set it in your .env file.");
-  process.exit(1);
+const USING_BEDROCK_NOAUTH =
+  (process.env.CLAUDE_CODE_USE_BEDROCK === '1') &&
+  (process.env.CLAUDE_CODE_SKIP_BEDROCK_AUTH === '1');
+
+if (!USING_BEDROCK_NOAUTH) {
+  if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY === "your-api-key-here") {
+    console.error("❌ ANTHROPIC_API_KEY is required (or set CLAUDE_CODE_USE_BEDROCK=1 and CLAUDE_CODE_SKIP_BEDROCK_AUTH=1 to use proxy without a key).");
+    process.exit(1);
+  }
+} else {
+  console.log("ℹ️ Using Bedrock proxy with auth disabled; ANTHROPIC_API_KEY not required.");
 }
 
 console.log("🚀 Starting Claude Code Remote Control Host (Improved)...");
@@ -76,6 +86,28 @@ interface Conversation {
   updatedAt?: number;
 }
 
+// Heartbeat entries for liveness monitoring between host and mobile
+interface Heartbeat {
+  id: string; // e.g., 'host' | 'mobile'
+  kind?: string; // 'host' | 'mobile' | other
+  lastSeenAt: number;
+  note?: string;
+}
+
+// Basic Issue structure to align with mobile app queries
+interface Issue {
+  id: string;
+  title: string;
+  description?: string;
+  priority?: "High" | "Medium" | "Low";
+  status?: "Todo" | "In Progress" | "Done";
+  createdAt?: number;
+  updatedAt?: number;
+  context?: any;
+  conversationId?: string;
+  messageId?: string;
+}
+
 interface QueuedMessage {
   message: Message;
   addedAt: number;
@@ -97,6 +129,9 @@ class ClaudeRemoteControl {
   
   // Configuration
   private enableConcurrentConversations = true; // Enable concurrent processing by default
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private hostHeartbeatId: string | null = null;
+  private llmPreamble: string | null = null;
 
   // Helper function to safely update messages
   private async updateMessage(messageId: string, updates: Partial<Message>): Promise<void> {
@@ -112,6 +147,16 @@ class ClaudeRemoteControl {
     }
   }
 
+  // Helper: structured log to InstantDB (best-effort)
+  private async log(kind: string, message: string, meta?: any): Promise<void> {
+    try {
+      const logId = id();
+      await db.transact([
+        (tx as any).logs[logId].update({ id: logId, kind, message, meta: meta || {}, timestamp: Date.now() })
+      ]);
+    } catch {}
+  }
+
   // Helper function to safely update conversations
   private async updateConversation(conversationId: string, updates: Partial<Conversation>): Promise<void> {
     try {
@@ -124,6 +169,99 @@ class ClaudeRemoteControl {
     } catch (error) {
       console.warn(`⚠️ Could not update conversation ${conversationId}:`, error);
     }
+  }
+
+  // Helper: write host heartbeat regularly so the mobile client can reflect status
+  startHostHeartbeat(intervalMs: number = 10000) {
+    const ensureIdAndWrite = async () => {
+      try {
+        // Ensure we have a stable UUID id for host heartbeat
+        if (!this.hostHeartbeatId) {
+          const res = await db.queryOnce({ heartbeats: { $: { where: { kind: 'host' }, limit: 1 } } });
+          const existing = res.data?.heartbeats?.[0];
+          if (existing?.id) {
+            this.hostHeartbeatId = existing.id;
+          } else {
+            this.hostHeartbeatId = id();
+          }
+        }
+        await db.transact([
+          tx.heartbeats[this.hostHeartbeatId].update({ id: this.hostHeartbeatId, kind: 'host', lastSeenAt: Date.now() } as Heartbeat),
+        ]);
+      } catch (err) {
+        console.warn('⚠️ Failed to write host heartbeat:', err);
+      }
+    };
+    // write once immediately, then on an interval
+    ensureIdAndWrite();
+    this.heartbeatInterval = setInterval(ensureIdAndWrite, intervalMs);
+  }
+
+  stopHostHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
+
+  // Ensure there is at least one example issue present (for initial UI rendering)
+  async ensureSeedIssue(): Promise<void> {
+    try {
+      const result = await db.queryOnce({ issues: { $: { limit: 1 } } });
+      if (!result.data?.issues || result.data.issues.length === 0) {
+        const issueId = id();
+        const seed: Issue = {
+          id: issueId,
+          title: 'First issue',
+          description: 'Seeded by host to demonstrate issues list',
+          priority: 'Medium',
+          status: 'Todo',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        await db.transact([
+          tx.issues[issueId].update(seed),
+        ]);
+        console.log('📝 Seeded initial issue');
+      }
+    } catch (err) {
+      console.warn('⚠️ Could not ensure seed issue:', err);
+    }
+  }
+
+  // Load LLM preamble from docs/llm-prompt.md (once), fallback to built-in
+  private loadPreamble(): string {
+    if (this.llmPreamble) return this.llmPreamble;
+    const fallback = `
+You are the host development agent for the Organic Software project.
+Context:
+- A React Native/Expo mobile app communicates with a Node host via InstantDB.
+- The Node listener subscribes to InstantDB messages and forwards them to you (Claude Code) with full tool access.
+- You can read/edit files, run Bash, install dependencies, and modify the mobile app UI/logic (no native modules authored by hand).
+
+Database (InstantDB) entities (IDs are UUIDs):
+- conversations { id, userId, title, status, claudeSessionId?, createdAt?, updatedAt? }
+- messages { id, conversationId, role, content, timestamp, status, metadata? }
+- issues { id, title, description?, priority, status, createdAt, updatedAt, conversationId?, messageId? }
+- heartbeats { id, kind, lastSeenAt, note? }
+- logs { id, kind, message, meta, timestamp }
+
+  Operational guidance:
+  - Parse the user's intent from their message. You may refactor code, add screens, change behavior, and write tests.
+  - If you install JS deps (e.g., in mobile-app), run: 'node supervisor.ts deps-mobile' to restart the Expo bundler.
+  - Prefer editing existing files over creating new duplicates. Respect expo-router.
+  - When you create issues in code, include conversationId and messageId for traceability.
+  - Write structured logs to the 'logs' entity for key events.
+  - Keep changes small and coherent; when a multi-step feature is needed, outline a plan, then implement incrementally.
+`;
+    try {
+      const p = path.join(process.cwd(), "docs", "llm-prompt.md");
+      const content = fs.readFileSync(p, "utf8");
+      this.llmPreamble = content || fallback;
+    } catch {
+      this.llmPreamble = fallback;
+    }
+    return this.llmPreamble!;
   }
 
   async enqueueMessage(message: Message): Promise<void> {
@@ -274,9 +412,11 @@ class ClaudeRemoteControl {
 
     console.log(`\n📱 Processing message: "${message.content.substring(0, 50)}..."`);
     console.log(`   From conversation: ${message.conversationId}`);
+    this.log('handler', 'processing message', { conversationId: message.conversationId, messageId: message.id }).catch(() => {});
 
     // Update message status to processing
     await this.updateMessage(message.id, { status: "processing" });
+
 
     // Send immediate acknowledgment response
     const acknowledgmentId = id();
@@ -308,6 +448,7 @@ class ClaudeRemoteControl {
       // Send to Claude Code using query API with session resumption
       // Based on tests/test-transitive-sessions.ts: rely on Claude's session context first
       console.log("🤖 Sending to Claude...");
+      this.log('handler', 'sending to claude', { conversationId: message.conversationId, messageId: message.id }).catch(() => {});
       if (sessionId) {
         console.log(`   📎 Resuming Claude session: ${sessionId} (Claude maintains context)`);
       } else {
@@ -326,8 +467,13 @@ class ClaudeRemoteControl {
         await this.updateMessage(ackId, { status: "replaced" });
       }
       
+      const includePreamble = !sessionId; // send preamble on first message of a conversation
+      const promptText = includePreamble
+        ? `${this.loadPreamble()}\n\n# User Message\n${message.content}`
+        : message.content;
+
       const claudeQuery = query({
-        prompt: message.content,  // Send original message, let Claude session handle context
+        prompt: promptText,
         options: {
           model: "us.anthropic.claude-sonnet-4-20250514-v1:0",
           maxTurns: 10,
@@ -429,8 +575,10 @@ class ClaudeRemoteControl {
 
       console.log(`✅ Claude responded (${fullResponse.length} chars in ${processingTime}ms)`);
       console.log(`📝 Response saved to conversation`);
+      this.log('handler', 'assistant responded', { conversationId: message.conversationId, messageId: message.id, chars: fullResponse.length, ms: processingTime }).catch(() => {});
     } catch (error) {
       console.error("❌ Error processing message:", error);
+      this.log('error', 'processing failed', { conversationId: message.conversationId, messageId: message.id, error: String(error) }).catch(() => {});
       
       // Update message status to error
       await this.updateMessage(message.id, { status: "error" });
@@ -449,6 +597,8 @@ class ClaudeRemoteControl {
       });
     }
   }
+
+  // Note: No manual parsing here. The listener forwards to the LLM.
 
   async startRemoteListener(): Promise<void> {
     if (this.isListening) {
@@ -492,17 +642,32 @@ class ClaudeRemoteControl {
     try {
       const result = await db.queryOnce({ 
         messages: {},
-        conversations: {} 
+        conversations: {},
+        issues: {},
+        heartbeats: {},
       });
       
       if (result.data) {
         const messageCount = result.data.messages?.length || 0;
         const conversationCount = result.data.conversations?.length || 0;
         const sessionsActive = this.conversationSessions.size;
+        const issueCount = result.data.issues?.length || 0;
+        const heartbeats = (result.data.heartbeats as Heartbeat[] | undefined) || [];
+        const hostBeat = heartbeats.find(h => h.id === 'host' || h.kind === 'host');
+        const mobileBeat = heartbeats.find(h => h.kind === 'mobile');
+        const webBeat = heartbeats.find(h => h.kind === 'web');
+        const now = Date.now();
+        const hostOnline = hostBeat ? (now - (hostBeat.lastSeenAt || 0)) < 20000 : false;
+        const mobileOnline = mobileBeat ? (now - (mobileBeat.lastSeenAt || 0)) < 20000 : false;
+        const webOnline = webBeat ? (now - (webBeat.lastSeenAt || 0)) < 10000 : false;
         
         console.log(`\n📊 Database Stats:`);
         console.log(`   • ${conversationCount} conversations`);
         console.log(`   • ${messageCount} messages`);
+        console.log(`   • ${issueCount} issues`);
+        console.log(`   • Host:   ${hostOnline ? '🟢 online' : '🔴 offline'}`);
+        console.log(`   • Mobile: ${mobileOnline ? '🟢 online' : '🔴 offline'}`);
+        console.log(`   • Web:    ${webOnline ? '🟢 online' : '🔴 offline'}`);
         console.log(`   • ${this.processedMessageIds.size} messages processed this session`);
         console.log(`   • ${this.messageQueue.length} messages in queue`);
         console.log(`   • ${this.conversationsInProgress.size} conversations being processed`);
@@ -559,6 +724,10 @@ async function main() {
   
   // Start the real-time message listener
   await remoteControl.startRemoteListener();
+  // Start host heartbeat to support mobile status indicator
+  remoteControl.startHostHeartbeat(10000);
+  // Ensure an example issue exists for the Issues screen
+  await remoteControl.ensureSeedIssue();
   
   // Show current stats
   await remoteControl.showStats();
@@ -578,6 +747,7 @@ async function main() {
   process.on('SIGINT', async () => {
     console.log("\n🛑 Shutting down...");
     await remoteControl.stopRemoteListener();
+    remoteControl.stopHostHeartbeat();
     await remoteControl.showStats();
     db.shutdown();
     process.exit(0);

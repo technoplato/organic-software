@@ -12,8 +12,8 @@ import {
   ActivityIndicator,
   Animated
 } from 'react-native';
-import { useState, useEffect, useRef } from 'react';
-import { init, tx, id } from '@instantdb/react-native';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { init, tx, id } from '../lib/db';
 import { useRouter } from 'expo-router';
 
 // InstantDB configuration
@@ -119,11 +119,18 @@ export default function App() {
         }
       : {},
     issues: {},
+    heartbeats: {},
   });
 
   const conversations = data?.conversations || [];
   const messages = data?.messages || [];
   const dbIssues = data?.issues || [];
+  const heartbeats = data?.heartbeats || [];
+
+  // Host heartbeat status
+  const hostHeartbeat = heartbeats.find((h: any) => h.id === 'host' || h.kind === 'host');
+  const hostOnlineThreshold = Platform.OS === 'web' ? 10000 : 20000; // tighter on web
+  const hostOnline = hostHeartbeat ? (Date.now() - (hostHeartbeat.lastSeenAt || 0)) < hostOnlineThreshold : false;
 
   // Sort messages by timestamp
   const sortedMessages = [...messages].sort(
@@ -171,6 +178,35 @@ export default function App() {
     }
     lastMessageCount.current = messages.length;
   }, [messages.length, autoScroll]);
+
+  // Client heartbeat writer (for host supervision). Use stable id per session.
+  useEffect(() => {
+    const kind = Platform.OS === 'web' ? 'web' : 'mobile';
+    let hbId: string | null = null;
+    const write = async () => {
+      try {
+        if (!hbId) hbId = id();
+        await db.transact([
+          tx.heartbeats[hbId].update({ id: hbId, kind, lastSeenAt: Date.now() }),
+        ]);
+      } catch {}
+    };
+    const interval = setInterval(write, 10000);
+    // fire once quickly
+    write();
+    return () => clearInterval(interval);
+  }, []);
+
+  // Handle keyboard shortcuts for web
+  const handleKeyPress = useCallback((event: any) => {
+    if (Platform.OS === 'web' && event.nativeEvent) {
+      const { key, metaKey, ctrlKey } = event.nativeEvent;
+      if (key === 'Enter' && (metaKey || ctrlKey)) {
+        event.preventDefault();
+        sendMessage();
+      }
+    }
+  }, [inputText, currentConversationId]);
 
   // Handle scroll position for showing/hiding scroll button
   const handleScroll = (event: any) => {
@@ -384,7 +420,7 @@ export default function App() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-        <Text style={styles.title}>Claude Code Remote Control</Text>
+        <Text style={styles.title}>Claude Code Remote Control {hostOnline ? '🟢' : '🔴'}</Text>
         
         {/* Navigation Header */}
         {currentScreen === "conversations" && (
@@ -403,6 +439,18 @@ export default function App() {
                   onPress={() => setCurrentScreen("hello")}
                 >
                   <Text style={styles.createButtonText}>Hello</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.createButton, styles.issuesButton]} 
+                  onPress={() => router.push('/issues')}
+                >
+                  <Text style={styles.createButtonText}>Issues</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.createButton, styles.logsButton]} 
+                  onPress={() => router.push('/logs')}
+                >
+                  <Text style={styles.createButtonText}>Logs</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.createButton} onPress={createConversation}>
                   <Text style={styles.createButtonText}>+ New</Text>
@@ -488,9 +536,10 @@ export default function App() {
               style={styles.textInput}
               value={inputText}
               onChangeText={setInputText}
-              placeholder="Type a message..."
+              placeholder={Platform.OS === 'web' ? "Type a message... (⌘+Enter to send)" : "Type a message..."}
               multiline
               editable={conversationState !== "sending"}
+              onKeyPress={handleKeyPress}
             />
             <TouchableOpacity 
               style={[
@@ -524,7 +573,7 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#f8fafc',
   },
   keyboardAvoid: {
     flex: 1,
@@ -545,11 +594,12 @@ const styles = StyleSheet.create({
     margin: 20,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 20,
-    color: '#333',
+    marginBottom: 24,
+    color: '#1e293b',
+    letterSpacing: -0.5,
   },
   conversationsSection: {
     marginBottom: 10,
@@ -561,40 +611,51 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: '#333',
+    color: '#1e293b',
+    letterSpacing: -0.3,
   },
   createButton: {
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   createButtonText: {
     color: 'white',
     fontWeight: '600',
+    fontSize: 14,
   },
   conversationsList: {
     maxHeight: 80,
   },
   conversationItem: {
     backgroundColor: 'white',
-    padding: 12,
-    marginRight: 10,
-    borderRadius: 8,
-    minWidth: 120,
+    padding: 16,
+    marginRight: 12,
+    borderRadius: 12,
+    minWidth: 140,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 8,
+    elevation: 4,
     position: 'relative',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   activeConversation: {
-    backgroundColor: '#FFF0E6',
-    borderColor: '#FF6B35',
+    backgroundColor: '#eff6ff',
+    borderColor: '#3b82f6',
     borderWidth: 2,
+    shadowColor: '#3b82f6',
+    shadowOpacity: 0.15,
   },
   conversationTitle: {
     fontWeight: '600',
@@ -615,15 +676,18 @@ const styles = StyleSheet.create({
   statusBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF0E6',
-    padding: 8,
-    borderRadius: 6,
-    marginBottom: 10,
+    backgroundColor: '#fef3c7',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#fbbf24',
   },
   statusText: {
     marginLeft: 8,
-    color: '#FF6B35',
+    color: '#d97706',
     fontStyle: 'italic',
+    fontWeight: '500',
   },
   messagesSection: {
     flex: 1,
@@ -635,14 +699,16 @@ const styles = StyleSheet.create({
   },
   messageContainer: {
     backgroundColor: 'white',
-    padding: 12,
-    marginVertical: 4,
-    borderRadius: 8,
+    padding: 16,
+    marginVertical: 6,
+    borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
   messageHeader: {
     flexDirection: 'row',
@@ -651,12 +717,14 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   userMessage: {
-    backgroundColor: '#FFF0E6',
-    marginLeft: 20,
+    backgroundColor: '#eff6ff',
+    marginLeft: 24,
+    borderColor: '#dbeafe',
   },
   assistantMessage: {
-    backgroundColor: '#F3E5F5',
-    marginRight: 20,
+    backgroundColor: '#f0fdf4',
+    marginRight: 24,
+    borderColor: '#dcfce7',
   },
   systemMessage: {
     backgroundColor: '#FFF3CD',
@@ -681,19 +749,19 @@ const styles = StyleSheet.create({
   },
   scrollToBottomButton: {
     position: 'absolute',
-    bottom: 10,
-    right: 10,
-    backgroundColor: '#FF6B35',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    bottom: 12,
+    right: 12,
+    backgroundColor: '#3b82f6',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   scrollButtonText: {
     fontSize: 20,
@@ -702,28 +770,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     backgroundColor: 'white',
-    padding: 12,
-    borderRadius: 8,
+    padding: 16,
+    borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   textInput: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 6,
-    padding: 10,
-    marginRight: 10,
-    maxHeight: 100,
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    padding: 12,
+    marginRight: 12,
+    maxHeight: 120,
+    fontSize: 16,
+    backgroundColor: '#f8fafc',
   },
   sendButton: {
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 6,
+    backgroundColor: '#10b981',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   sendButtonDisabled: {
     backgroundColor: '#ccc',
@@ -747,10 +824,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   demoButton: {
-    backgroundColor: '#8E44AD',
+    backgroundColor: '#8b5cf6',
   },
   helloButton: {
-    backgroundColor: '#28a745',
+    backgroundColor: '#10b981',
+  },
+  issuesButton: {
+    backgroundColor: '#f59e0b',
+  },
+  logsButton: {
+    backgroundColor: '#6b7280',
   },
   backButton: {
     backgroundColor: '#6c757d',

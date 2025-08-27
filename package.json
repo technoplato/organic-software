@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "supervisor": "npx tsx supervisor.ts",
     "listen": "npx tsx instant-message-handler.ts",
     "start": "npx tsx instant-message-handler.ts",
     "host": "npx tsx instant-message-handler.ts",
@@ -15,7 +16,8 @@
     "sanity-check": "npx tsx sanity-check.ts"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "nodemon": "^3.1.0"
   },
   "peerDependencies": {
     "typescript": "^5"
