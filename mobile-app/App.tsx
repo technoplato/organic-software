@@ -1,16 +1,17 @@
 import { StatusBar } from 'expo-status-bar';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  FlatList, 
-  TextInput, 
-  TouchableOpacity, 
-  SafeAreaView, 
+import {
+  StyleSheet,
+  Text,
+  View,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Animated
+  Animated,
+  useColorScheme,
 } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { init, tx, id } from '@instantdb/react-native';
@@ -53,12 +54,14 @@ interface Issue {
 }
 
 export default function App() {
+  const colorScheme = useColorScheme();
   const [currentScreen, setCurrentScreen] = useState<Screen>("conversations");
   const [inputText, setInputText] = useState('');
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [conversationState, setConversationState] = useState<ConversationState>("idle");
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
+  const styles = getStyles(colorScheme);
   
   const flatListRef = useRef<FlatList>(null);
   const scrollButtonOpacity = useRef(new Animated.Value(0)).current;
@@ -508,260 +511,283 @@ export default function App() {
           </View>
         )}
       </KeyboardAvoidingView>
-      <StatusBar style="auto" />
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FF69B4',
-  },
-  keyboardAvoid: {
-    flex: 1,
-    padding: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    color: '#666',
-  },
-  errorText: {
-    color: 'red',
-    textAlign: 'center',
-    margin: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 20,
-    color: '#333',
-  },
-  conversationsSection: {
-    marginBottom: 10,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  createButton: {
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  createButtonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  conversationsList: {
-    maxHeight: 80,
-  },
-  conversationItem: {
-    backgroundColor: 'white',
-    padding: 12,
-    marginRight: 10,
-    borderRadius: 8,
-    minWidth: 120,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-    position: 'relative',
-  },
-  activeConversation: {
-    backgroundColor: '#FFF0E6',
-    borderColor: '#FF6B35',
-    borderWidth: 2,
-  },
-  conversationTitle: {
-    fontWeight: '600',
-    color: '#333',
-    fontSize: 12,
-  },
-  conversationDate: {
-    fontSize: 10,
-    color: '#666',
-    marginTop: 4,
-  },
-  sessionIndicator: {
-    position: 'absolute',
-    top: 5,
-    right: 5,
-    fontSize: 12,
-  },
-  statusBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF0E6',
-    padding: 8,
-    borderRadius: 6,
-    marginBottom: 10,
-  },
-  statusText: {
-    marginLeft: 8,
-    color: '#FF6B35',
-    fontStyle: 'italic',
-  },
-  messagesSection: {
-    flex: 1,
-    marginBottom: 10,
-    position: 'relative',
-  },
-  messagesList: {
-    flex: 1,
-  },
-  messageContainer: {
-    backgroundColor: 'white',
-    padding: 12,
-    marginVertical: 4,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  messageHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  userMessage: {
-    backgroundColor: '#FFF0E6',
-    marginLeft: 20,
-  },
-  assistantMessage: {
-    backgroundColor: '#F3E5F5',
-    marginRight: 20,
-  },
-  systemMessage: {
-    backgroundColor: '#FFF3CD',
-  },
-  messageRole: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#666',
-  },
-  messageStatus: {
-    fontSize: 12,
-  },
-  messageContent: {
-    fontSize: 16,
-    color: '#333',
-    marginBottom: 4,
-  },
-  messageTime: {
-    fontSize: 10,
-    color: '#999',
-    textAlign: 'right',
-  },
-  scrollToBottomButton: {
-    position: 'absolute',
-    bottom: 10,
-    right: 10,
-    backgroundColor: '#FF6B35',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  scrollButtonText: {
-    fontSize: 20,
-  },
-  inputSection: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    backgroundColor: 'white',
-    padding: 12,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  textInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 6,
-    padding: 10,
-    marginRight: 10,
-    maxHeight: 100,
-  },
-  sendButton: {
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 6,
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#ccc',
-  },
-  sendButtonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 20,
-  },
-  buttonGroup: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  helloButton: {
-    backgroundColor: '#28a745',
-  },
-  backButton: {
-    backgroundColor: '#6c757d',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  backButtonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  helloScreen: {
-    flex: 1,
-  },
-  helloContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  helloText: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-});
+const getStyles = (scheme: 'light' | 'dark' | null | undefined) => {
+  const isDark = scheme === 'dark';
+  const palette = {
+    background: isDark ? '#121212' : '#FF69B4',
+    surface: isDark ? '#1E1E1E' : '#FFFFFF',
+    surfaceAlt1: isDark ? '#23201D' : '#FFF0E6',
+    surfaceAlt2: isDark ? '#201F23' : '#F3E5F5',
+    surfaceAlt3: isDark ? '#23221C' : '#FFF3CD',
+    textPrimary: isDark ? '#EDEDED' : '#333333',
+    textSecondary: isDark ? '#B0B0B0' : '#666666',
+    textTertiary: isDark ? '#9A9A9A' : '#999999',
+    border: isDark ? '#2A2A2A' : '#DDDDDD',
+    statusBg: isDark ? '#26211E' : '#FFF0E6',
+    statusText: '#FF6B35',
+    accent: '#FF6B35',
+    disabled: isDark ? '#555555' : '#CCCCCC',
+  } as const;
+
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: palette.background,
+    },
+    keyboardAvoid: {
+      flex: 1,
+      padding: 16,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    loadingText: {
+      marginTop: 10,
+      color: palette.textSecondary,
+    },
+    errorText: {
+      color: '#FF5A5A',
+      textAlign: 'center',
+      margin: 20,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      textAlign: 'center',
+      marginBottom: 20,
+      color: palette.textPrimary,
+    },
+    conversationsSection: {
+      marginBottom: 10,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: palette.textPrimary,
+    },
+    createButton: {
+      backgroundColor: palette.accent,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 6,
+    },
+    createButtonText: {
+      color: 'white',
+      fontWeight: '600',
+    },
+    conversationsList: {
+      maxHeight: 80,
+    },
+    conversationItem: {
+      backgroundColor: palette.surface,
+      padding: 12,
+      marginRight: 10,
+      borderRadius: 8,
+      minWidth: 120,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: isDark ? 0.3 : 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+      position: 'relative',
+      borderColor: isDark ? '#2A2A2A' : 'transparent',
+      borderWidth: isDark ? 1 : 0,
+    },
+    activeConversation: {
+      backgroundColor: palette.surfaceAlt1,
+      borderColor: palette.accent,
+      borderWidth: 2,
+    },
+    conversationTitle: {
+      fontWeight: '600',
+      color: palette.textPrimary,
+      fontSize: 12,
+    },
+    conversationDate: {
+      fontSize: 10,
+      color: palette.textSecondary,
+      marginTop: 4,
+    },
+    sessionIndicator: {
+      position: 'absolute',
+      top: 5,
+      right: 5,
+      fontSize: 12,
+    },
+    statusBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: palette.statusBg,
+      padding: 8,
+      borderRadius: 6,
+      marginBottom: 10,
+    },
+    statusText: {
+      marginLeft: 8,
+      color: palette.statusText,
+      fontStyle: 'italic',
+    },
+    messagesSection: {
+      flex: 1,
+      marginBottom: 10,
+      position: 'relative',
+    },
+    messagesList: {
+      flex: 1,
+    },
+    messageContainer: {
+      backgroundColor: palette.surface,
+      padding: 12,
+      marginVertical: 4,
+      borderRadius: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: isDark ? 0.3 : 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    messageHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 4,
+    },
+    userMessage: {
+      backgroundColor: palette.surfaceAlt1,
+      marginLeft: 20,
+    },
+    assistantMessage: {
+      backgroundColor: palette.surfaceAlt2,
+      marginRight: 20,
+    },
+    systemMessage: {
+      backgroundColor: palette.surfaceAlt3,
+    },
+    messageRole: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: palette.textSecondary,
+    },
+    messageStatus: {
+      fontSize: 12,
+      color: palette.textSecondary,
+    },
+    messageContent: {
+      fontSize: 16,
+      color: palette.textPrimary,
+      marginBottom: 4,
+    },
+    messageTime: {
+      fontSize: 10,
+      color: palette.textTertiary,
+      textAlign: 'right',
+    },
+    scrollToBottomButton: {
+      position: 'absolute',
+      bottom: 10,
+      right: 10,
+      backgroundColor: palette.accent,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDark ? 0.4 : 0.25,
+      shadowRadius: 4,
+      elevation: 5,
+    },
+    scrollButtonText: {
+      fontSize: 20,
+    },
+    inputSection: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      backgroundColor: palette.surface,
+      padding: 12,
+      borderRadius: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: isDark ? 0.3 : 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    textInput: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: 6,
+      padding: 10,
+      marginRight: 10,
+      maxHeight: 100,
+      color: palette.textPrimary,
+    },
+    sendButton: {
+      backgroundColor: palette.accent,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 6,
+    },
+    sendButtonDisabled: {
+      backgroundColor: palette.disabled,
+    },
+    sendButtonText: {
+      color: 'white',
+      fontWeight: '600',
+    },
+    emptyState: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    emptyStateText: {
+      fontSize: 16,
+      color: palette.textSecondary,
+      marginBottom: 20,
+    },
+    buttonGroup: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    helloButton: {
+      backgroundColor: '#28a745',
+    },
+    backButton: {
+      backgroundColor: '#6c757d',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 6,
+    },
+    backButtonText: {
+      color: 'white',
+      fontWeight: '600',
+    },
+    helloScreen: {
+      flex: 1,
+    },
+    helloContent: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    helloText: {
+      fontSize: 48,
+      fontWeight: 'bold',
+      color: palette.textPrimary,
+    },
+  });
+};

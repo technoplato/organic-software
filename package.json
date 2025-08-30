@@ -38,6 +38,7 @@
     "@instantdb/core": "file:/Users/mlustig/dev/tools/instant/client/packages/node",
     "@instantdb/node": "file:/Users/mlustig/dev/tools/instant/client/packages/node",
     "dotenv": "^17.2.1",
+    "expo-server-sdk": "^4.0.0",
     "tsx": "^4.20.4"
   }
 }
