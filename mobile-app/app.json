@@ -44,7 +44,8 @@
           "microphonePermission": "Allow $(PRODUCT_NAME) to use the microphone for speech transcription.",
           "speechRecognitionPermission": "Allow $(PRODUCT_NAME) to use speech recognition to convert your voice to text."
         }
-      ]
+      ],
+      "expo-router"
     ],
     "extra": {
       "eas": {
