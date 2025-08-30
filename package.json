@@ -5,6 +5,13 @@
   "private": true,
   "scripts": {
     "supervisor": "npx tsx supervisor.ts",
+    "supervisor:background": "./start-supervisor.sh",
+    "supervisor:stop": "./stop-supervisor.sh",
+    "supervisor:logs": "./supervisor-logs.sh",
+    "supervisor:status": "ps aux | grep -E '(supervisor|instant-message-handler|expo)' | grep -v grep || echo 'No supervisor processes running'",
+    "deps-mobile": "SUPERVISOR_DETACH_BUNDLER=1 npx tsx supervisor.ts deps-mobile",
+    "restart-bundler": "npx tsx supervisor.ts restart-bundler",
+    "restart-handler": "npx tsx supervisor.ts restart-handler",
     "listen": "npx tsx instant-message-handler.ts",
     "start": "npx tsx instant-message-handler.ts",
     "host": "npx tsx instant-message-handler.ts",
