@@ -264,8 +264,20 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // TODO: Push notifications require a development build with proper project ID
+  // Currently commented out as it requires:
+  // 1. Creating an EAS project and getting a project ID
+  // 2. Building a development build (not Expo Go)
+  // 3. Configuring APNs certificates for iOS
+  // See: https://docs.expo.dev/versions/latest/sdk/notifications/
+  //
   // Register for push notifications and store device token in InstantDB
   useEffect(() => {
+    console.log('⚠️ Push notifications disabled - requires development build');
+    console.log('📚 See: https://docs.expo.dev/versions/latest/sdk/notifications/');
+    
+    // Commented out until we have a proper development build
+    /*
     let mounted = true;
     registerForPushNotificationsAsync().then(async (token) => {
       if (!mounted || !token) return;
@@ -285,6 +297,7 @@ export default function App() {
       }
     });
     return () => { mounted = false; };
+    */
   }, []);
 
   // Set up notification listeners
