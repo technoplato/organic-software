@@ -108,14 +108,24 @@ class Supervisor {
   private startHandler() {
     if (this.handler) return;
     console.log('▶️  Starting handler');
+    // Reset startup time when starting handler to give it grace period
+    this.startupTime = Date.now();
     // Use nodemon so the handler restarts automatically on file changes
+    // Only watch the handler file itself and key config files, not the entire directory
     this.handler = this.spawnProc({
       name: 'handler',
       cmd: 'npx',
       args: [
         'nodemon',
         '--quiet',
-        '--watch', '.',
+        '--watch', 'instant-message-handler.ts',
+        '--watch', '.env',
+        '--watch', 'package.json',
+        '--ignore', 'mobile-app/',
+        '--ignore', 'tests/',
+        '--ignore', 'docs/',
+        '--ignore', '*.log',
+        '--ignore', '*.md',
         '--ext', 'ts,tsx,js,json',
         '--signal', 'SIGINT',
         '--exec', 'npx tsx instant-message-handler.ts'
