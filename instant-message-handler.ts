@@ -113,6 +113,25 @@ interface QueuedMessage {
   addedAt: number;
 }
 
+interface Error {
+  id: string;
+  type: string;
+  errorType: string;
+  content: string;
+  source: string;
+  timestamp: number;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  metadata?: any;
+  resolution?: string;
+  resolvedAt?: number;
+  errorMessage?: string;
+}
+
+interface QueuedError {
+  error: Error;
+  addedAt: number;
+}
+
 class ClaudeRemoteControl {
   private processedMessageIds = new Set<string>();
   private isListening = false;
@@ -121,8 +140,11 @@ class ClaudeRemoteControl {
   
   // Queue management
   private messageQueue: QueuedMessage[] = [];
+  private errorQueue: QueuedError[] = [];
   private isProcessing = false;
+  private isProcessingErrors = false;
   private conversationsInProgress = new Set<string>();
+  private processedErrorIds = new Set<string>();
   
   // Session tracking
   private conversationSessions = new Map<string, string>(); // conversationId -> claudeSessionId
@@ -132,6 +154,31 @@ class ClaudeRemoteControl {
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private hostHeartbeatId: string | null = null;
   private llmPreamble: string | null = null;
+
+  // Send Expo push notifications to all known devices with a preview
+  private async sendExpoPushNotifications(conversationId: string, fullResponse: string): Promise<void> {
+    try {
+      const res = await db.queryOnce({ devices: {} as any });
+      const devices: any[] = (res.data?.devices || []).filter((d: any) => typeof d?.pushToken === 'string');
+      if (devices.length === 0) return;
+      const snippet = (fullResponse || '').replace(/\s+/g, ' ').slice(0, 140);
+      const payload = devices.map((d: any) => ({
+        to: d.pushToken,
+        title: 'Claude responded',
+        body: snippet.length ? snippet : 'Response ready',
+        data: { conversationId, preview: snippet },
+      }));
+      await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      } as any);
+      this.log('push', 'expo push sent', { count: devices.length, conversationId }).catch(() => {});
+    } catch (err) {
+      console.warn('⚠️ Failed to send Expo push:', err);
+    }
+  }
+
 
   // Helper function to safely update messages
   private async updateMessage(messageId: string, updates: Partial<Message>): Promise<void> {
@@ -186,7 +233,7 @@ class ClaudeRemoteControl {
           }
         }
         await db.transact([
-          tx.heartbeats[this.hostHeartbeatId].update({ id: this.hostHeartbeatId, kind: 'host', lastSeenAt: Date.now() } as Heartbeat),
+          (tx as any).heartbeats[this.hostHeartbeatId].update({ id: this.hostHeartbeatId, kind: 'host', lastSeenAt: Date.now() }),
         ]);
       } catch (err) {
         console.warn('⚠️ Failed to write host heartbeat:', err);
@@ -194,7 +241,7 @@ class ClaudeRemoteControl {
     };
     // write once immediately, then on an interval
     ensureIdAndWrite();
-    this.heartbeatInterval = setInterval(ensureIdAndWrite, intervalMs);
+    this.heartbeatInterval = setInterval(ensureIdAndWrite, intervalMs) as any;
   }
 
   stopHostHeartbeat() {
@@ -220,7 +267,7 @@ class ClaudeRemoteControl {
           updatedAt: Date.now(),
         };
         await db.transact([
-          tx.issues[issueId].update(seed),
+          (tx as any).issues[issueId].update(seed),
         ]);
         console.log('📝 Seeded initial issue');
       }
@@ -248,7 +295,7 @@ Database (InstantDB) entities (IDs are UUIDs):
 
   Operational guidance:
   - Parse the user's intent from their message. You may refactor code, add screens, change behavior, and write tests.
-  - If you install JS deps (e.g., in mobile-app), run: 'node supervisor.ts deps-mobile' to restart the Expo bundler.
+  - If you install JS deps (e.g., in mobile-app), run: 'npx tsx supervisor.ts deps-mobile' to restart the Expo bundler.
   - Prefer editing existing files over creating new duplicates. Respect expo-router.
   - When you create issues in code, include conversationId and messageId for traceability.
   - Write structured logs to the 'logs' entity for key events.
@@ -475,6 +522,7 @@ Database (InstantDB) entities (IDs are UUIDs):
       const claudeQuery = query({
         prompt: promptText,
         options: {
+          customSystemPrompt: this.loadPreamble(),
           model: "us.anthropic.claude-sonnet-4-20250514-v1:0",
           maxTurns: 10,
           cwd: process.cwd(),
@@ -600,6 +648,172 @@ Database (InstantDB) entities (IDs are UUIDs):
 
   // Note: No manual parsing here. The listener forwards to the LLM.
 
+  async enqueueError(error: Error): Promise<void> {
+    // Skip if we've already processed this error
+    if (this.processedErrorIds.has(error.id)) {
+      return;
+    }
+
+    // Only process pending errors
+    if (error.status !== "pending") {
+      this.processedErrorIds.add(error.id);
+      return;
+    }
+
+    // Check if error is already in queue
+    if (this.errorQueue.some(q => q.error.id === error.id)) {
+      return;
+    }
+
+    // Add to queue
+    console.log(`🔧 Enqueueing error: ${error.errorType}`);
+    this.errorQueue.push({
+      error,
+      addedAt: Date.now()
+    });
+    
+    // Process queue if not already processing
+    if (!this.isProcessingErrors) {
+      this.processErrorQueue();
+    }
+  }
+
+  async processErrorQueue(): Promise<void> {
+    if (this.isProcessingErrors || this.errorQueue.length === 0) {
+      return;
+    }
+
+    this.isProcessingErrors = true;
+
+    while (this.errorQueue.length > 0) {
+      // Process errors FIFO
+      const queuedError = this.errorQueue.shift();
+      if (!queuedError) continue;
+      
+      const error = queuedError.error;
+      
+      console.log(`\n🔧 Processing error: ${error.errorType}`);
+      console.log(`   Queue depth: ${this.errorQueue.length} remaining`);
+      
+      try {
+        await this.processError(error);
+      } catch (err) {
+        console.error("❌ Error processing error:", err);
+      }
+    }
+
+    this.isProcessingErrors = false;
+    console.log("✅ Error queue processing complete");
+  }
+
+  async processError(error: Error): Promise<void> {
+    // Skip if already processed
+    if (this.processedErrorIds.has(error.id)) {
+      console.warn(`⚠️ Error ${error.id} already processed, skipping`);
+      return;
+    }
+
+    console.log(`\n🔧 Processing error from ${error.source}: ${error.errorType}`);
+    this.log('handler', 'processing error', { errorId: error.id, type: error.errorType }).catch(() => {});
+
+    // Update error status to processing
+    try {
+      await db.transact([
+        (tx as any).errors[error.id].update({ status: "processing" })
+      ]);
+    } catch {}
+
+    try {
+      // Create error-fixing prompt
+      const errorFixPrompt = `
+I detected an error in the Expo bundler that needs to be fixed:
+
+${error.content}
+
+Error Type: ${error.errorType}
+Source: ${error.source}
+Metadata: ${JSON.stringify(error.metadata, null, 2)}
+
+Please analyze this error and fix it. The error appears to be coming from the mobile app's Expo bundler.
+Look at the file mentioned in the error and fix the syntax or other issues.
+`;
+
+      // Send to Claude for fixing
+      console.log("🤖 Sending error to Claude for automatic fixing...");
+      
+      const claudeQuery = query({
+        prompt: errorFixPrompt,
+        options: {
+          customSystemPrompt: this.loadPreamble(),
+          model: "us.anthropic.claude-sonnet-4-20250514-v1:0",
+          maxTurns: 10,
+          cwd: process.cwd(),
+          permissionMode: "bypassPermissions",
+          allowedTools: [
+            "Read", "Write", "Edit", "MultiEdit",
+            "Bash", "BashOutput", "KillBash",
+            "Glob", "Grep", "LS",
+            "WebFetch", "WebSearch",
+            "NotebookEdit",
+            "TodoWrite",
+            "ExitPlanMode",
+            "Task",
+            "mcp__*"
+          ],
+        }
+      });
+      
+      let fullResponse = "";
+      
+      for await (const claudeMessage of claudeQuery) {
+        if (claudeMessage.type === "assistant") {
+          const assistantMessage = claudeMessage as any;
+          if (assistantMessage.message?.content) {
+            for (const content of assistantMessage.message.content) {
+              if (content.type === "text") {
+                fullResponse += content.text || "";
+              }
+            }
+          }
+        }
+      }
+
+      console.log(`✅ Claude processed error ${error.id}`);
+      
+      // Mark error as completed
+      await db.transact([
+        (tx as any).errors[error.id].update({
+          status: "completed",
+          resolution: fullResponse,
+          resolvedAt: Date.now()
+        })
+      ]);
+      
+      // Mark error as processed
+      this.processedErrorIds.add(error.id);
+      
+      this.log('handler', 'error fixed', { errorId: error.id, resolution: fullResponse.substring(0, 200) }).catch(() => {});
+      
+    } catch (err) {
+      console.error(`❌ Failed to process error ${error.id}:`, err);
+      
+      // Mark error as failed
+      try {
+        await db.transact([
+          (tx as any).errors[error.id].update({
+            status: "failed",
+            errorMessage: err instanceof Error ? err.message : String(err)
+          })
+        ]);
+      } catch {}
+      
+      // Mark error as processed even in failure case
+      this.processedErrorIds.add(error.id);
+      
+      this.log('error', 'error processing failed', { errorId: error.id, error: String(err) }).catch(() => {});
+    }
+  }
+
   async startRemoteListener(): Promise<void> {
     if (this.isListening) {
       console.log("⚠️ Already listening for remote messages");
@@ -609,18 +823,34 @@ Database (InstantDB) entities (IDs are UUIDs):
     console.log("🎧 Starting remote message listener...");
     this.isListening = true;
 
-    // Subscribe to messages in real-time
-    this.unsubscribeFn = db.subscribeQuery({ messages: {} }, (resp: any) => {
+    // Subscribe to messages and errors in real-time
+    this.unsubscribeFn = db.subscribeQuery({
+      messages: {},
+      errors: {}
+    }, (resp: any) => {
       if (resp.error) {
         console.error("❌ Subscription error:", resp.error.message);
         return;
       }
       
-      if (resp.data && resp.data.messages) {
-        console.log(`📬 Received ${resp.data.messages.length} messages from subscription`);
-        // Enqueue new messages for processing
-        for (const message of resp.data.messages) {
-          this.enqueueMessage(message as Message);
+      if (resp.data) {
+        if (resp.data.messages) {
+          console.log(`📬 Received ${resp.data.messages.length} messages from subscription`);
+          // Enqueue new messages for processing
+          for (const message of resp.data.messages) {
+            this.enqueueMessage(message as Message);
+          }
+        }
+        
+        if (resp.data.errors) {
+          const pendingErrors = resp.data.errors.filter((e: any) => e.status === 'pending');
+          if (pendingErrors.length > 0) {
+            console.log(`🔧 Received ${pendingErrors.length} errors from subscription`);
+            // Enqueue new errors for processing
+            for (const error of pendingErrors) {
+              this.enqueueError(error as Error);
+            }
+          }
         }
       }
     });
@@ -640,11 +870,12 @@ Database (InstantDB) entities (IDs are UUIDs):
 
   async showStats(): Promise<void> {
     try {
-      const result = await db.queryOnce({ 
+      const result = await db.queryOnce({
         messages: {},
         conversations: {},
         issues: {},
         heartbeats: {},
+        errors: {},
       });
       
       if (result.data) {
@@ -652,6 +883,7 @@ Database (InstantDB) entities (IDs are UUIDs):
         const conversationCount = result.data.conversations?.length || 0;
         const sessionsActive = this.conversationSessions.size;
         const issueCount = result.data.issues?.length || 0;
+        const errorCount = result.data.errors?.length || 0;
         const heartbeats = (result.data.heartbeats as Heartbeat[] | undefined) || [];
         const hostBeat = heartbeats.find(h => h.id === 'host' || h.kind === 'host');
         const mobileBeat = heartbeats.find(h => h.kind === 'mobile');
@@ -665,11 +897,14 @@ Database (InstantDB) entities (IDs are UUIDs):
         console.log(`   • ${conversationCount} conversations`);
         console.log(`   • ${messageCount} messages`);
         console.log(`   • ${issueCount} issues`);
+        console.log(`   • ${errorCount} errors`);
         console.log(`   • Host:   ${hostOnline ? '🟢 online' : '🔴 offline'}`);
         console.log(`   • Mobile: ${mobileOnline ? '🟢 online' : '🔴 offline'}`);
         console.log(`   • Web:    ${webOnline ? '🟢 online' : '🔴 offline'}`);
         console.log(`   • ${this.processedMessageIds.size} messages processed this session`);
+        console.log(`   • ${this.processedErrorIds.size} errors processed this session`);
         console.log(`   • ${this.messageQueue.length} messages in queue`);
+        console.log(`   • ${this.errorQueue.length} errors in queue`);
         console.log(`   • ${this.conversationsInProgress.size} conversations being processed`);
         console.log(`   • ${sessionsActive} Claude sessions cached`);
         console.log(`   • Concurrent mode: ${this.enableConcurrentConversations ? 'enabled' : 'disabled'}`);
@@ -727,7 +962,7 @@ async function main() {
   // Start host heartbeat to support mobile status indicator
   remoteControl.startHostHeartbeat(10000);
   // Ensure an example issue exists for the Issues screen
-  await remoteControl.ensureSeedIssue();
+  // await remoteControl.ensureSeedIssue();
   
   // Show current stats
   await remoteControl.showStats();
