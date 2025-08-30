@@ -48,11 +48,13 @@ class Supervisor {
   private expoPort: number | null = null;
   private zscalerCheckAttempts = 0;
   private maxZscalerAttempts = 3;
+  private startupTime = Date.now();
 
   start() {
     console.log('👷 Starting supervisor');
     this.startHandler();
     this.startBundler();
+    // Give the handler 20 seconds to write its first heartbeat before checking
     this.interval = setInterval(() => this.checkHealth(), CHECK_MS) as any;
     // Check for bundle errors every 10 seconds
     this.bundleCheckInterval = setInterval(() => this.checkBundleForErrors(), 10000) as any;
@@ -172,6 +174,13 @@ class Supervisor {
 
   private async checkHealth() {
     if (!this.db) return;
+    
+    // Skip health checks for the first 20 seconds to give handler time to start
+    const timeSinceStartup = Date.now() - this.startupTime;
+    if (timeSinceStartup < 20000) {
+      return;
+    }
+    
     try {
       const res = await withTimeout(this.db.queryOnce({ heartbeats: {} }), 1500, 'heartbeats query');
       const beats = res.data?.heartbeats || [];
