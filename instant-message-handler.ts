@@ -744,7 +744,7 @@ Look at the file mentioned in the error and fix the syntax or other issues.
       const claudeQuery = query({
         prompt: errorFixPrompt,
         options: {
-          customSystemPrompt: this.loadPreamble(),
+          // customSystemPrompt: this.loadPreamble(),
           model: "us.anthropic.claude-sonnet-4-20250514-v1:0",
           maxTurns: 10,
           cwd: process.cwd(),
