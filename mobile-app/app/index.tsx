@@ -9,9 +9,11 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { useSpeechRecognition, RecognitionState, checkSpeechRecognitionAvailability } from "../lib/speech-recognition";
 
 export default function SpeechRecognitionDemo() {
+  const router = useRouter();
   const {
     state,
     transcript,
@@ -87,6 +89,14 @@ export default function SpeechRecognitionDemo() {
         <View style={styles.header}>
           <Text style={styles.title}>🎙️ Speech Recognition Demo</Text>
           <Text style={styles.subtitle}>iOS Development Build</Text>
+          
+          {/* Navigation to Enhanced Demo */}
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: "#8B5CF6", marginTop: 15 }]}
+            onPress={() => router.push("/speech-demo")}
+          >
+            <Text style={styles.buttonText}>✨ Try Enhanced Demo</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Capabilities Section */}
