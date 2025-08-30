@@ -4,16 +4,17 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  StyleSheet,
   SafeAreaView,
   Alert,
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSpeechRecognition, RecognitionState, checkSpeechRecognitionAvailability } from "../lib/speech-recognition";
+import useStyles from "../lib/useStyles";
 
 export default function SpeechScreen() {
   const router = useRouter();
+  const { styles, palette } = useStyles();
   const {
     state,
     transcript,
@@ -97,7 +98,7 @@ export default function SpeechScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.alignCenter, styles.marginBottom]}>
           <Text style={styles.title}>🎙️ Speech Recognition</Text>
           <Text style={styles.subtitle}>Voice input and transcription</Text>
           
@@ -112,31 +113,37 @@ export default function SpeechScreen() {
 
         {/* Capabilities Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Device Capabilities</Text>
+          <Text style={styles.sectionSubtitle}>Device Capabilities</Text>
           {capabilities ? (
-            <View style={styles.capabilitiesGrid}>
-              <View style={styles.capability}>
-                <Text style={styles.capabilityLabel}>Available</Text>
-                <Text style={styles.capabilityValue}>
+            <View style={[styles.card, styles.flexRow, { justifyContent: 'space-around' }]}>
+              <View style={styles.alignCenter}>
+                <Text style={[{ fontSize: 12, color: palette.textSecondary, marginBottom: 5 }]}>
+                  Available
+                </Text>
+                <Text style={{ fontSize: 24 }}>
                   {capabilities.isAvailable ? "✅" : "❌"}
                 </Text>
               </View>
-              <View style={styles.capability}>
-                <Text style={styles.capabilityLabel}>On-Device</Text>
-                <Text style={styles.capabilityValue}>
+              <View style={styles.alignCenter}>
+                <Text style={[{ fontSize: 12, color: palette.textSecondary, marginBottom: 5 }]}>
+                  On-Device
+                </Text>
+                <Text style={{ fontSize: 24 }}>
                   {capabilities.supportsOnDevice ? "✅" : "❌"}
                 </Text>
               </View>
-              <View style={styles.capability}>
-                <Text style={styles.capabilityLabel}>Recording</Text>
-                <Text style={styles.capabilityValue}>
+              <View style={styles.alignCenter}>
+                <Text style={[{ fontSize: 12, color: palette.textSecondary, marginBottom: 5 }]}>
+                  Recording
+                </Text>
+                <Text style={{ fontSize: 24 }}>
                   {capabilities.supportsRecording ? "✅" : "❌"}
                 </Text>
               </View>
             </View>
           ) : (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator />
+              <ActivityIndicator color={palette.accent} />
               <Text style={styles.loadingText}>Checking capabilities...</Text>
             </View>
           )}
@@ -144,15 +151,15 @@ export default function SpeechScreen() {
 
         {/* Status Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recognition Status</Text>
+          <Text style={styles.sectionSubtitle}>Recognition Status</Text>
           <View style={[styles.statusCard, { borderColor: getStateColor() }]}>
             <Text style={styles.statusEmoji}>{getStateEmoji()}</Text>
             <Text style={[styles.statusText, { color: getStateColor() }]}>
               {state.toUpperCase()}
             </Text>
             {isRecognizing && (
-              <View style={styles.pulsingDot}>
-                <View style={[styles.dot, { backgroundColor: getStateColor() }]} />
+              <View style={{ marginLeft: 12 }}>
+                <View style={[{ width: 12, height: 12, borderRadius: 6, backgroundColor: getStateColor() }]} />
               </View>
             )}
           </View>
@@ -160,13 +167,14 @@ export default function SpeechScreen() {
 
         {/* Controls Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Controls</Text>
-          <View style={styles.buttonGrid}>
+          <Text style={styles.sectionSubtitle}>Controls</Text>
+          <View style={styles.grid}>
             <TouchableOpacity
               style={[
                 styles.button,
+                styles.buttonSuccess,
+                styles.gridItemHalf,
                 isRecognizing && styles.buttonDisabled,
-                { backgroundColor: "#10B981" },
               ]}
               onPress={handleStart}
               disabled={isRecognizing}
@@ -177,8 +185,9 @@ export default function SpeechScreen() {
             <TouchableOpacity
               style={[
                 styles.button,
+                styles.buttonWarning,
+                styles.gridItemHalf,
                 !isRecognizing && styles.buttonDisabled,
-                { backgroundColor: "#F59E0B" },
               ]}
               onPress={stop}
               disabled={!isRecognizing}
@@ -189,8 +198,9 @@ export default function SpeechScreen() {
             <TouchableOpacity
               style={[
                 styles.button,
+                styles.buttonError,
+                styles.gridItemHalf,
                 !isRecognizing && styles.buttonDisabled,
-                { backgroundColor: "#EF4444" },
               ]}
               onPress={abort}
               disabled={!isRecognizing}
@@ -201,7 +211,8 @@ export default function SpeechScreen() {
             <TouchableOpacity
               style={[
                 styles.button,
-                { backgroundColor: "#6B7280" },
+                { backgroundColor: palette.textSecondary },
+                styles.gridItemHalf,
               ]}
               onPress={reset}
             >
@@ -213,39 +224,45 @@ export default function SpeechScreen() {
         {/* Error Section */}
         {error && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Error</Text>
+            <Text style={styles.sectionSubtitle}>Error</Text>
             <View style={styles.errorCard}>
               <Text style={styles.errorIcon}>⚠️</Text>
-              <Text style={styles.errorText}>{error}</Text>
+              <Text style={[{ color: palette.error, fontSize: 14, flex: 1 }]}>{error}</Text>
             </View>
           </View>
         )}
 
         {/* Transcript Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Live Transcript</Text>
-          <View style={styles.transcriptCard}>
+          <Text style={styles.sectionSubtitle}>Live Transcript</Text>
+          <View style={[styles.card, { minHeight: 150 }]}>
             {transcript || interimTranscript ? (
               <>
                 {transcript && (
-                  <View style={styles.transcriptSection}>
-                    <Text style={styles.transcriptLabel}>Final:</Text>
-                    <Text style={styles.transcriptText}>{transcript}</Text>
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={[{ fontSize: 12, color: palette.textSecondary, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase' }]}>
+                      Final:
+                    </Text>
+                    <Text style={styles.messageContent}>{transcript}</Text>
                   </View>
                 )}
                 {interimTranscript && (
-                  <View style={styles.transcriptSection}>
-                    <Text style={styles.interimLabel}>Live:</Text>
-                    <Text style={styles.interimText}>{interimTranscript}</Text>
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={[{ fontSize: 12, color: palette.warning, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase' }]}>
+                      Live:
+                    </Text>
+                    <Text style={[{ fontSize: 16, color: palette.textSecondary, fontStyle: 'italic', lineHeight: 24 }]}>
+                      {interimTranscript}
+                    </Text>
                   </View>
                 )}
               </>
             ) : (
-              <View style={styles.placeholderContainer}>
-                <Text style={styles.placeholderIcon}>
+              <View style={[styles.alignCenter, styles.justifyCenter, { minHeight: 100 }]}>
+                <Text style={{ fontSize: 32, marginBottom: 12 }}>
                   {isRecognizing ? "🎙️" : "💭"}
                 </Text>
-                <Text style={styles.placeholderText}>
+                <Text style={[{ fontSize: 16, color: palette.textTertiary, fontStyle: 'italic', textAlign: 'center' }]}>
                   {isRecognizing ? "Listening..." : "Press Start to begin transcription"}
                 </Text>
               </View>
@@ -254,22 +271,21 @@ export default function SpeechScreen() {
           
           {/* Transcript Actions */}
           {transcript && (
-            <View style={styles.transcriptActions}>
+            <View style={[styles.flexRow, { gap: 12, marginTop: 12 }]}>
               <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: "#3B82F6" }]}
+                style={[styles.button, styles.buttonPrimary, styles.flex1]}
                 onPress={copyToConversations}
               >
-                <Text style={styles.actionButtonText}>💬 Send to Chat</Text>
+                <Text style={styles.buttonText}>💬 Send to Chat</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: "#10B981" }]}
+                style={[styles.button, styles.buttonSuccess, styles.flex1]}
                 onPress={() => {
-                  // Copy to clipboard functionality could be added here
                   Alert.alert("Copied!", "Transcript copied to clipboard");
                 }}
               >
-                <Text style={styles.actionButtonText}>📋 Copy</Text>
+                <Text style={styles.buttonText}>📋 Copy</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -278,12 +294,14 @@ export default function SpeechScreen() {
         {/* Recording Info */}
         {recordingUri && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recording Saved</Text>
-            <View style={styles.recordingCard}>
-              <Text style={styles.recordingIcon}>📁</Text>
-              <View style={styles.recordingInfo}>
-                <Text style={styles.recordingText}>Audio file saved</Text>
-                <Text style={styles.recordingPath} numberOfLines={2}>
+            <Text style={styles.sectionSubtitle}>Recording Saved</Text>
+            <View style={[styles.card, { backgroundColor: palette.isDark ? '#1F2937' : '#F0FDF4', borderColor: palette.success, borderWidth: 1, flexDirection: 'row', alignItems: 'flex-start' }]}>
+              <Text style={{ fontSize: 24, marginRight: 12 }}>📁</Text>
+              <View style={styles.flex1}>
+                <Text style={[{ fontSize: 16, color: palette.success, fontWeight: '600', marginBottom: 8 }]}>
+                  Audio file saved
+                </Text>
+                <Text style={[{ fontSize: 12, color: palette.success, fontFamily: 'monospace' }]} numberOfLines={2}>
                   {recordingUri}
                 </Text>
               </View>
@@ -293,296 +311,26 @@ export default function SpeechScreen() {
 
         {/* Features Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Active Features</Text>
-          <View style={styles.featuresGrid}>
-            <View style={styles.feature}>
-              <Text style={styles.featureIcon}>🔴</Text>
-              <Text style={styles.featureLabel}>Live Transcription</Text>
-            </View>
-            <View style={styles.feature}>
-              <Text style={styles.featureIcon}>♾️</Text>
-              <Text style={styles.featureLabel}>Continuous Mode</Text>
-            </View>
-            <View style={styles.feature}>
-              <Text style={styles.featureIcon}>🌐</Text>
-              <Text style={styles.featureLabel}>Network-Based</Text>
-            </View>
-            <View style={styles.feature}>
-              <Text style={styles.featureIcon}>💾</Text>
-              <Text style={styles.featureLabel}>Audio Recording</Text>
-            </View>
-            <View style={styles.feature}>
-              <Text style={styles.featureIcon}>📝</Text>
-              <Text style={styles.featureLabel}>Dictation Mode</Text>
-            </View>
-            <View style={styles.feature}>
-              <Text style={styles.featureIcon}>🎧</Text>
-              <Text style={styles.featureLabel}>Background Audio</Text>
-            </View>
+          <Text style={styles.sectionSubtitle}>Active Features</Text>
+          <View style={styles.grid}>
+            {[
+              { icon: "🔴", label: "Live Transcription" },
+              { icon: "♾️", label: "Continuous Mode" },
+              { icon: "🌐", label: "Network-Based" },
+              { icon: "💾", label: "Audio Recording" },
+              { icon: "📝", label: "Dictation Mode" },
+              { icon: "🎧", label: "Background Audio" },
+            ].map((feature, index) => (
+              <View key={index} style={[styles.card, styles.flexRow, styles.alignCenter, styles.gridItemHalf]}>
+                <Text style={{ fontSize: 20, marginRight: 8 }}>{feature.icon}</Text>
+                <Text style={[{ fontSize: 13, color: palette.textPrimary, flex: 1 }]}>
+                  {feature.label}
+                </Text>
+              </View>
+            ))}
           </View>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F9FAFB",
-  },
-  scrollContent: {
-    padding: 20,
-  },
-  header: {
-    alignItems: "center",
-    marginBottom: 30,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#111827",
-    marginBottom: 5,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#6B7280",
-  },
-  section: {
-    marginBottom: 25,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 12,
-  },
-  loadingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-  loadingText: {
-    marginLeft: 12,
-    fontSize: 16,
-    color: "#6B7280",
-  },
-  capabilitiesGrid: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  capability: {
-    alignItems: "center",
-  },
-  capabilityLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginBottom: 5,
-  },
-  capabilityValue: {
-    fontSize: 24,
-  },
-  statusCard: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 20,
-    borderWidth: 2,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  statusEmoji: {
-    fontSize: 32,
-    marginRight: 12,
-  },
-  statusText: {
-    fontSize: 20,
-    fontWeight: "600",
-  },
-  pulsingDot: {
-    marginLeft: 12,
-  },
-  dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  buttonGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  button: {
-    flex: 1,
-    minWidth: "45%",
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  buttonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  errorCard: {
-    backgroundColor: "#FEE2E2",
-    borderRadius: 12,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: "#FCA5A5",
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  errorIcon: {
-    fontSize: 20,
-    marginRight: 12,
-  },
-  errorText: {
-    color: "#991B1B",
-    fontSize: 14,
-    flex: 1,
-  },
-  transcriptCard: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 20,
-    minHeight: 150,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  transcriptSection: {
-    marginBottom: 12,
-  },
-  transcriptLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "600",
-    marginBottom: 4,
-    textTransform: "uppercase",
-  },
-  transcriptText: {
-    fontSize: 16,
-    color: "#111827",
-    lineHeight: 24,
-  },
-  interimLabel: {
-    fontSize: 12,
-    color: "#F59E0B",
-    fontWeight: "600",
-    marginBottom: 4,
-    textTransform: "uppercase",
-  },
-  interimText: {
-    fontSize: 16,
-    color: "#6B7280",
-    fontStyle: "italic",
-    lineHeight: 24,
-  },
-  placeholderContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 100,
-  },
-  placeholderIcon: {
-    fontSize: 32,
-    marginBottom: 12,
-  },
-  placeholderText: {
-    fontSize: 16,
-    color: "#9CA3AF",
-    fontStyle: "italic",
-    textAlign: "center",
-  },
-  transcriptActions: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 12,
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  actionButtonText: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  recordingCard: {
-    backgroundColor: "#F0FDF4",
-    borderRadius: 12,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: "#86EFAC",
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  recordingIcon: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  recordingInfo: {
-    flex: 1,
-  },
-  recordingText: {
-    fontSize: 16,
-    color: "#166534",
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  recordingPath: {
-    fontSize: 12,
-    color: "#15803D",
-    fontFamily: "monospace",
-  },
-  featuresGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  feature: {
-    backgroundColor: "white",
-    borderRadius: 10,
-    padding: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    minWidth: "47%",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  featureIcon: {
-    fontSize: 20,
-    marginRight: 8,
-  },
-  featureLabel: {
-    fontSize: 13,
-    color: "#374151",
-    flex: 1,
-  },
-});

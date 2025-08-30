@@ -1,12 +1,24 @@
 import { useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
-import { init } from '../lib/db';
+import { View, Text, FlatList, SafeAreaView } from 'react-native';
+import { init } from '@instantdb/react-native';
+import useStyles from '../lib/useStyles';
 
 const db = init({
   appId: process.env.EXPO_PUBLIC_INSTANTDB_APP_ID || '54d69382-c27c-4e54-b2ac-c3dcaef2f0ad',
 });
 
+interface Issue {
+  id: string;
+  title: string;
+  description?: string;
+  priority?: "High" | "Medium" | "Low";
+  status: "Todo" | "In Progress" | "Done";
+  createdAt?: number;
+  updatedAt?: number;
+}
+
 export default function IssuesScreen() {
+  const { styles, palette } = useStyles();
   const { data, isLoading, error } = db.useQuery({ issues: {} });
   const issues = data?.issues || [];
 
@@ -15,36 +27,83 @@ export default function IssuesScreen() {
     [issues]
   );
 
-  if (isLoading) return <View style={styles.center}><Text>Loading issues…</Text></View>;
-  if (error) return <View style={styles.center}><Text>Error loading issues</Text></View>;
+  const getPriorityColor = (priority?: string) => {
+    switch (priority) {
+      case "High": return palette.error;
+      case "Medium": return palette.warning;
+      case "Low": return palette.success;
+      default: return palette.textSecondary;
+    }
+  };
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Issues</Text>
-      <FlatList
-        data={sorted}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.item}>
-            <Text style={styles.itemTitle}>{item.title} <Text style={styles.status}>[{item.status}]</Text></Text>
-            {item.priority && <Text style={styles.priority}>Priority: {item.priority}</Text>}
-            {item.description && <Text style={styles.desc}>{item.description}</Text>}
+  const renderIssue = ({ item }: { item: Issue }) => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.cardTitle}>{item.title}</Text>
+        {item.priority && (
+          <View style={[{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: getPriorityColor(item.priority) }]}>
+            <Text style={[{ fontSize: 12, fontWeight: '600', color: 'white' }]}>{item.priority}</Text>
           </View>
         )}
-        ListEmptyComponent={<Text style={styles.empty}>No issues yet.</Text>}
-      />
+      </View>
+      {item.description && (
+        <Text style={styles.cardDescription}>{item.description}</Text>
+      )}
+      <View style={[styles.flexRow, styles.justifyBetween, styles.alignCenter, { marginTop: 12 }]}>
+        <Text style={[{ fontSize: 12, fontWeight: '600', color: palette.textPrimary, backgroundColor: palette.surface, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: palette.border }]}>
+          {item.status}
+        </Text>
+        {item.createdAt && (
+          <Text style={[{ fontSize: 12, color: palette.textTertiary }]}>
+            {new Date(item.createdAt).toLocaleDateString()}
+          </Text>
+        )}
+      </View>
     </View>
   );
-}
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  title: { fontSize: 22, fontWeight: '700', marginBottom: 12 },
-  item: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#eee' },
-  itemTitle: { fontSize: 16, fontWeight: '600' },
-  status: { color: '#666', fontWeight: '400' },
-  priority: { color: '#333', marginTop: 4 },
-  desc: { color: '#555', marginTop: 6 },
-  empty: { color: '#666', textAlign: 'center', marginTop: 24 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-});
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading issues…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.errorText}>Error loading issues</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={[styles.padding, styles.alignCenter, styles.marginBottom]}>
+        <Text style={styles.title}>🐛 Issues</Text>
+        <Text style={styles.subtitle}>Track project issues and bugs</Text>
+      </View>
+      
+      {sorted.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateIcon}>🐛</Text>
+          <Text style={styles.emptyStateTitle}>No issues found</Text>
+          <Text style={styles.emptyStateText}>Issues will appear here when they are created</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={sorted}
+          renderItem={renderIssue}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[styles.paddingHorizontal, { paddingBottom: 20 }]}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+    </SafeAreaView>
+  );
+}

@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  StyleSheet,
   SafeAreaView,
   Alert,
   ActivityIndicator,
@@ -15,6 +14,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { init } from "@instantdb/react-native";
+import useStyles from "../lib/useStyles";
 
 // Configure notification handler
 Notifications.setNotificationHandler({
@@ -97,6 +97,7 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
 
 export default function ConversationsScreen() {
   const router = useRouter();
+  const { styles, palette } = useStyles();
   const { prefillText } = useLocalSearchParams();
   const [inputText, setInputText] = useState('');
   const [conversationState, setConversationState] = useState<ConversationState>("idle");
@@ -120,8 +121,28 @@ export default function ConversationsScreen() {
   const messagesArray = messages?.messages || [];
 
   useEffect(() => {
-    // Register for push notifications
-    registerForPushNotificationsAsync().then(setPushToken);
+    // Register for push notifications and save to database
+    registerForPushNotificationsAsync().then(async (token) => {
+      setPushToken(token);
+      
+      if (token) {
+        try {
+          // Save push token to database
+          const deviceId = `device_${Platform.OS}_${Date.now()}`;
+          await db.transact([
+            db.tx.devices[deviceId].update({
+              pushToken: token,
+              platform: Platform.OS,
+              updatedAt: Date.now(),
+              createdAt: Date.now(),
+            }),
+          ]);
+          console.log('✅ Push token saved to database:', token);
+        } catch (error) {
+          console.error('❌ Failed to save push token to database:', error);
+        }
+      }
+    });
     
     // Handle prefilled text from speech recognition
     if (prefillText && typeof prefillText === 'string') {
@@ -165,29 +186,31 @@ export default function ConversationsScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.alignCenter, styles.marginBottom]}>
           <Text style={styles.title}>💬 Conversations</Text>
           <Text style={styles.subtitle}>Chat with Claude via InstantDB</Text>
         </View>
 
         {/* Host Status */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Host Status</Text>
-          <View style={styles.statusCard}>
+          <Text style={styles.sectionSubtitle}>Host Status</Text>
+          <View style={styles.card}>
             <View style={styles.statusIndicator}>
               <View style={[
                 styles.statusDot,
-                { backgroundColor: heartbeatsArray.length > 0 ? '#10B981' : '#EF4444' }
+                { backgroundColor: heartbeatsArray.length > 0 ? palette.success : palette.error }
               ]} />
               <Text style={styles.statusText}>
                 {heartbeatsArray.length > 0 ? 'Host Online' : 'Host Offline'}
               </Text>
             </View>
             {pushToken && (
-              <Text style={styles.pushTokenText}>📱 Push notifications ready</Text>
+              <Text style={[{ fontSize: 12, color: palette.success, marginBottom: 4 }]}>
+                📱 Push notifications ready
+              </Text>
             )}
             {heartbeatsArray.length > 0 && (
-              <Text style={styles.lastSeenText}>
+              <Text style={[{ fontSize: 12, color: palette.textSecondary }]}>
                 Last heartbeat: {new Date().toLocaleTimeString()}
               </Text>
             )}
@@ -196,53 +219,55 @@ export default function ConversationsScreen() {
 
         {/* Quick Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.quickActions}>
+          <Text style={styles.sectionSubtitle}>Quick Actions</Text>
+          <View style={[styles.flexRow, { gap: 12 }]}>
             <TouchableOpacity
-              style={[styles.quickActionButton, { backgroundColor: '#3B82F6' }]}
+              style={[styles.button, styles.buttonPrimary, styles.flex1]}
               onPress={() => router.push('/speech')}
             >
-              <Text style={styles.quickActionText}>🎙️ Voice Input</Text>
+              <Text style={styles.buttonText}>🎙️ Voice Input</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
-              style={[styles.quickActionButton, { backgroundColor: '#10B981' }]}
+              style={[styles.button, styles.buttonSuccess, styles.flex1]}
               onPress={() => setInputText('Hello Claude! How are you today?')}
             >
-              <Text style={styles.quickActionText}>👋 Quick Hello</Text>
+              <Text style={styles.buttonText}>👋 Quick Hello</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Message Input */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Send Message</Text>
-          <View style={styles.inputContainer}>
+          <Text style={styles.sectionSubtitle}>Send Message</Text>
+          <View style={[styles.flexRow, { alignItems: 'flex-end', gap: 12 }]}>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, styles.flex1, { minHeight: 80, maxHeight: 120, textAlignVertical: 'top' }]}
               value={inputText}
               onChangeText={setInputText}
               placeholder="Type your message to Claude..."
+              placeholderTextColor={palette.textTertiary}
               multiline
               maxLength={1000}
-              textAlignVertical="top"
             />
             <TouchableOpacity
               style={[
-                styles.sendButton,
-                (!inputText.trim() || conversationState !== "idle") && styles.sendButtonDisabled
+                styles.button,
+                styles.buttonPrimary,
+                { minHeight: 56, paddingVertical: 16, paddingHorizontal: 20 },
+                (!inputText.trim() || conversationState !== "idle") && styles.buttonDisabled
               ]}
               onPress={sendMessage}
               disabled={!inputText.trim() || conversationState !== "idle"}
             >
-              <Text style={styles.sendButtonText}>
+              <Text style={[{ fontSize: 20 }]}>
                 {conversationState === "sending" ? "⏳" : "📤"}
               </Text>
             </TouchableOpacity>
           </View>
           
           {/* Character count */}
-          <Text style={styles.characterCount}>
+          <Text style={[styles.textRight, { fontSize: 12, color: palette.textSecondary, marginTop: 4 }]}>
             {inputText.length}/1000 characters
           </Text>
         </View>
@@ -251,14 +276,14 @@ export default function ConversationsScreen() {
         {conversationState !== "idle" && (
           <View style={styles.section}>
             <View style={[
-              styles.stateCard,
-              { backgroundColor: getStateColor(conversationState) }
+              styles.card,
+              { backgroundColor: getStateColor(conversationState), flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }
             ]}>
-              <Text style={styles.stateText}>
+              <Text style={[{ color: 'white', fontSize: 16, fontWeight: '600', textAlign: 'center' }]}>
                 {getStateMessage(conversationState)}
               </Text>
               {conversationState === "waiting_for_claude" && (
-                <ActivityIndicator color="white" style={styles.stateLoader} />
+                <ActivityIndicator color="white" style={{ marginLeft: 12 }} />
               )}
             </View>
           </View>
@@ -266,26 +291,26 @@ export default function ConversationsScreen() {
 
         {/* Recent Messages */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Messages</Text>
+          <Text style={styles.sectionSubtitle}>Recent Messages</Text>
           {messagesLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#3B82F6" />
+              <ActivityIndicator size="large" color={palette.accent} />
               <Text style={styles.loadingText}>Loading messages...</Text>
             </View>
           ) : messagesArray.length > 0 ? (
-            <View style={styles.messagesContainer}>
+            <View style={{ gap: 12 }}>
               {messagesArray
                 .sort((a: any, b: any) => b.timestamp - a.timestamp)
                 .slice(0, 10)
                 .map((message: any) => (
                   <View key={message.id} style={[
                     styles.messageCard,
-                    { borderLeftColor: message.role === 'user' ? '#3B82F6' : '#10B981' }
+                    { borderLeftColor: message.role === 'user' ? palette.accent : palette.success }
                   ]}>
                     <View style={styles.messageHeader}>
                       <Text style={[
                         styles.messageRole,
-                        { color: message.role === 'user' ? '#3B82F6' : '#10B981' }
+                        { color: message.role === 'user' ? palette.accent : palette.success }
                       ]}>
                         {message.role === 'user' ? '👤 You' : '🤖 Claude'}
                       </Text>
@@ -295,7 +320,7 @@ export default function ConversationsScreen() {
                     </View>
                     <Text style={styles.messageContent}>{message.content}</Text>
                     {message.status && (
-                      <Text style={styles.messageStatus}>
+                      <Text style={[{ fontSize: 12, color: palette.textSecondary, marginTop: 8, fontStyle: 'italic' }]}>
                         Status: {message.status}
                       </Text>
                     )}
@@ -336,214 +361,3 @@ function getStateMessage(state: ConversationState): string {
     default: return "";
   }
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F9FAFB",
-  },
-  scrollContent: {
-    padding: 20,
-  },
-  header: {
-    alignItems: "center",
-    marginBottom: 30,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#111827",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#6B7280",
-    textAlign: "center",
-  },
-  section: {
-    marginBottom: 25,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 12,
-  },
-  statusCard: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  statusIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  statusText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  pushTokenText: {
-    fontSize: 12,
-    color: "#059669",
-    marginBottom: 4,
-  },
-  lastSeenText: {
-    fontSize: 12,
-    color: "#6B7280",
-  },
-  quickActions: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  quickActionButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  quickActionText: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 12,
-  },
-  textInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 12,
-    padding: 16,
-    backgroundColor: "white",
-    minHeight: 80,
-    maxHeight: 120,
-    fontSize: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  sendButton: {
-    backgroundColor: "#3B82F6",
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 56,
-  },
-  sendButtonDisabled: {
-    opacity: 0.5,
-  },
-  sendButtonText: {
-    fontSize: 20,
-  },
-  characterCount: {
-    fontSize: 12,
-    color: "#6B7280",
-    textAlign: "right",
-    marginTop: 4,
-  },
-  stateCard: {
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stateText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  stateLoader: {
-    marginLeft: 12,
-  },
-  loadingContainer: {
-    alignItems: "center",
-    padding: 40,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#6B7280",
-  },
-  messagesContainer: {
-    gap: 12,
-  },
-  messageCard: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  messageHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  messageRole: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  messageTime: {
-    fontSize: 12,
-    color: "#6B7280",
-  },
-  messageContent: {
-    fontSize: 16,
-    color: "#111827",
-    lineHeight: 24,
-  },
-  messageStatus: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 8,
-    fontStyle: "italic",
-  },
-  emptyState: {
-    alignItems: "center",
-    padding: 40,
-  },
-  emptyStateIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 8,
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: "#6B7280",
-    textAlign: "center",
-    lineHeight: 20,
-  },
-});

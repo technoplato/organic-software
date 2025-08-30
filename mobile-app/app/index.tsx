@@ -4,13 +4,13 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  StyleSheet,
   SafeAreaView,
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { init } from "@instantdb/react-native";
 import * as Notifications from "expo-notifications";
+import useStyles from "../lib/useStyles";
 
 // InstantDB configuration
 const db = init({
@@ -19,6 +19,7 @@ const db = init({
 
 export default function HomePage() {
   const router = useRouter();
+  const { styles, palette } = useStyles();
   const [systemStatus, setSystemStatus] = useState<{
     hostOnline: boolean;
     pushNotifications: boolean;
@@ -110,41 +111,47 @@ export default function HomePage() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>🤖 Organic Software</Text>
+        <View style={[styles.alignCenter, styles.marginBottom]}>
+          <Text style={[styles.title, { fontSize: 32 }]}>🤖 Organic Software</Text>
           <Text style={styles.subtitle}>Claude Remote Control & Speech Recognition</Text>
         </View>
 
         {/* System Status */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>System Status</Text>
-          <View style={styles.statusGrid}>
-            <View style={styles.statusCard}>
-              <Text style={styles.statusIcon}>
+          <View style={[styles.flexRow, { justifyContent: 'space-between', gap: 10 }]}>
+            <View style={[styles.card, styles.flex1, styles.alignCenter]}>
+              <Text style={{ fontSize: 24, marginBottom: 8 }}>
                 {systemStatus.hostOnline ? "🟢" : "🔴"}
               </Text>
-              <Text style={styles.statusLabel}>Host Connection</Text>
-              <Text style={styles.statusValue}>
+              <Text style={[styles.textCenter, { fontSize: 12, color: palette.textSecondary, marginBottom: 4 }]}>
+                Host Connection
+              </Text>
+              <Text style={[styles.textCenter, { fontSize: 14, fontWeight: "600", color: palette.textPrimary }]}>
                 {systemStatus.hostOnline ? "Online" : "Offline"}
               </Text>
             </View>
             
-            <View style={styles.statusCard}>
-              <Text style={styles.statusIcon}>
+            <View style={[styles.card, styles.flex1, styles.alignCenter]}>
+              <Text style={{ fontSize: 24, marginBottom: 8 }}>
                 {systemStatus.pushNotifications ? "📱" : "🔕"}
               </Text>
-              <Text style={styles.statusLabel}>Push Notifications</Text>
-              <Text style={styles.statusValue}>
+              <Text style={[styles.textCenter, { fontSize: 12, color: palette.textSecondary, marginBottom: 4 }]}>
+                Push Notifications
+              </Text>
+              <Text style={[styles.textCenter, { fontSize: 14, fontWeight: "600", color: palette.textPrimary }]}>
                 {systemStatus.pushNotifications ? "Enabled" : "Disabled"}
               </Text>
             </View>
             
-            <View style={styles.statusCard}>
-              <Text style={styles.statusIcon}>
+            <View style={[styles.card, styles.flex1, styles.alignCenter]}>
+              <Text style={{ fontSize: 24, marginBottom: 8 }}>
                 {systemStatus.speechAvailable ? "🎙️" : "🔇"}
               </Text>
-              <Text style={styles.statusLabel}>Speech Recognition</Text>
-              <Text style={styles.statusValue}>
+              <Text style={[styles.textCenter, { fontSize: 12, color: palette.textSecondary, marginBottom: 4 }]}>
+                Speech Recognition
+              </Text>
+              <Text style={[styles.textCenter, { fontSize: 14, fontWeight: "600", color: palette.textPrimary }]}>
                 {systemStatus.speechAvailable ? "Ready" : "Unavailable"}
               </Text>
             </View>
@@ -154,19 +161,31 @@ export default function HomePage() {
         {/* Main Navigation */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Main Features</Text>
-          <View style={styles.navigationGrid}>
+          <View style={{ gap: 16 }}>
             {navigationCards.map((card, index) => (
               <TouchableOpacity
                 key={index}
-                style={[styles.navigationCard, { borderLeftColor: card.color }]}
+                style={[styles.card, { borderLeftWidth: 4, borderLeftColor: card.color, position: 'relative', overflow: 'hidden' }]}
                 onPress={() => router.push(card.route as any)}
               >
                 <View style={styles.cardHeader}>
                   <Text style={styles.cardTitle}>{card.title}</Text>
-                  <Text style={styles.cardStatus}>{card.status}</Text>
+                  <Text style={[{ fontSize: 12, color: palette.textSecondary, backgroundColor: palette.surface, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }]}>
+                    {card.status}
+                  </Text>
                 </View>
                 <Text style={styles.cardSubtitle}>{card.subtitle}</Text>
-                <View style={[styles.cardAccent, { backgroundColor: card.color }]} />
+                <View style={{
+                  position: "absolute",
+                  top: 0,
+                  right: 0,
+                  width: 60,
+                  height: 60,
+                  borderRadius: 30,
+                  backgroundColor: card.color,
+                  opacity: 0.1,
+                  transform: [{ translateX: 20 }, { translateY: -20 }],
+                }} />
               </TouchableOpacity>
             ))}
           </View>
@@ -175,25 +194,34 @@ export default function HomePage() {
         {/* Quick Actions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.quickActionsGrid}>
+          <View style={[styles.flexRow, { flexWrap: 'wrap', gap: 12 }]}>
             {quickActions.map((action, index) => (
               <TouchableOpacity
                 key={index}
-                style={[styles.quickActionCard, { backgroundColor: action.color }]}
+                style={[{
+                  flex: 1,
+                  minWidth: "30%",
+                  paddingVertical: 16,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  backgroundColor: action.color,
+                }, styles.alignCenter, styles.justifyCenter]}
                 onPress={() => router.push(action.route as any)}
               >
-                <Text style={styles.quickActionText}>{action.title}</Text>
+                <Text style={[styles.buttonText, styles.textCenter]}>
+                  {action.title}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
         {/* Footer Info */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
+        <View style={[styles.alignCenter, styles.marginTop, { paddingTop: 20, borderTopWidth: 1, borderTopColor: palette.border }]}>
+          <Text style={[styles.textCenter, { fontSize: 14, color: palette.textSecondary, marginBottom: 8 }]}>
             Tap any card above to navigate to that feature
           </Text>
-          <Text style={styles.versionText}>
+          <Text style={[styles.textCenter, { fontSize: 12, color: palette.textTertiary }]}>
             v1.0.0 • iOS Development Build
           </Text>
         </View>
@@ -201,159 +229,3 @@ export default function HomePage() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F9FAFB",
-  },
-  scrollContent: {
-    padding: 20,
-  },
-  header: {
-    alignItems: "center",
-    marginBottom: 30,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#111827",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#6B7280",
-    textAlign: "center",
-  },
-  section: {
-    marginBottom: 30,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 16,
-  },
-  statusGrid: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  statusCard: {
-    flex: 1,
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  statusIcon: {
-    fontSize: 24,
-    marginBottom: 8,
-  },
-  statusLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    textAlign: "center",
-    marginBottom: 4,
-  },
-  statusValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
-    textAlign: "center",
-  },
-  navigationGrid: {
-    gap: 16,
-  },
-  navigationCard: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 20,
-    borderLeftWidth: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    position: "relative",
-    overflow: "hidden",
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 8,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#111827",
-    flex: 1,
-  },
-  cardStatus: {
-    fontSize: 12,
-    color: "#6B7280",
-    backgroundColor: "#F3F4F6",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  cardSubtitle: {
-    fontSize: 14,
-    color: "#6B7280",
-    lineHeight: 20,
-  },
-  cardAccent: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    opacity: 0.1,
-    transform: [{ translateX: 20 }, { translateY: -20 }],
-  },
-  quickActionsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  quickActionCard: {
-    flex: 1,
-    minWidth: "30%",
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quickActionText: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  footer: {
-    alignItems: "center",
-    marginTop: 20,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-  },
-  footerText: {
-    fontSize: 14,
-    color: "#6B7280",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  versionText: {
-    fontSize: 12,
-    color: "#9CA3AF",
-    textAlign: "center",
-  },
-});
