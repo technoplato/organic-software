@@ -1,22 +1,21 @@
-import { StatusBar } from 'expo-status-bar';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  FlatList, 
-  TextInput, 
-  TouchableOpacity, 
-  SafeAreaView, 
-  KeyboardAvoidingView,
-  Platform,
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  SafeAreaView,
+  Alert,
   ActivityIndicator,
-  Animated
-} from 'react-native';
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { init, tx, id } from '../lib/db';
-import { useRouter } from 'expo-router';
-import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
+  Platform,
+  TextInput,
+} from "react-native";
+import { useRouter } from "expo-router";
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
+import { init } from "@instantdb/react-native";
+import { useSpeechRecognition, RecognitionState, checkSpeechRecognitionAvailability } from "../lib/speech-recognition";
 
 // Configure notification handler - how notifications should be presented when app is in foreground
 Notifications.setNotificationHandler({
@@ -57,7 +56,7 @@ interface Message {
 
 type ConversationState = "idle" | "sending" | "waiting_for_claude" | "claude_responding" | "error";
 
-type Screen = "conversations" | "issues" | "hello";
+type Screen = "conversations" | "issues" | "hello" | "speech";
 
 interface Issue {
   title: string;
@@ -116,577 +115,466 @@ export default function App() {
   const router = useRouter();
   const [currentScreen, setCurrentScreen] = useState<Screen>("conversations");
   const [inputText, setInputText] = useState('');
-  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [conversationState, setConversationState] = useState<ConversationState>("idle");
-  const [showScrollButton, setShowScrollButton] = useState(false);
-  const [autoScroll, setAutoScroll] = useState(true);
-  
-  const flatListRef = useRef<FlatList>(null);
-  const scrollButtonOpacity = useRef(new Animated.Value(0)).current;
-  const lastMessageCount = useRef(0);
+  const [pushToken, setPushToken] = useState<string | null>(null);
 
-  // Issues data from the project
-  const issues: Issue[] = [
-    {
-      title: "Expo Notifications",
-      description: "Add expo notifications for when messages are completed processing by Claude",
-      priority: "High",
-      status: "Todo"
-    },
-    {
-      title: "Claude Session Persistence",
-      description: "Add ability for Claude to maintain its session across app restarts",
-      priority: "High",
-      status: "Todo"
-    },
-    {
-      title: "UI/UX Improvements",
-      description: "Improve layout, orientation handling, and styling to make the app much easier and nicer to use",
-      priority: "High",
-      status: "Todo"
-    },
-    {
-      title: "MCP Server Integration",
-      description: "Enable Claude to use our MCP servers from the mobile app",
-      priority: "Medium",
-      status: "Todo"
-    },
-    {
-      title: "Hands-free Mode",
-      description: "Add hands-free version that works without popping up the keyboard",
-      priority: "Medium",
-      status: "Todo"
-    },
-    {
-      title: "Issues Database",
-      description: "Create instant DB issues table viewable from the app",
-      priority: "Low",
-      status: "Todo"
-    }
-  ];
+  // Speech recognition hooks
+  const {
+    state: speechState,
+    transcript,
+    interimTranscript,
+    isRecognizing,
+    error: speechError,
+    recordingUri,
+    start: startSpeech,
+    stop: stopSpeech,
+    abort: abortSpeech,
+    reset: resetSpeech,
+  } = useSpeechRecognition();
 
-  // Query conversations, messages, and issues from InstantDB
-  const { data, isLoading, error } = db.useQuery({
+  const [speechCapabilities, setSpeechCapabilities] = useState<{
+    isAvailable: boolean;
+    supportsOnDevice: boolean;
+    supportsRecording: boolean;
+  } | null>(null);
+
+  // InstantDB queries
+  const { data: conversations, isLoading: conversationsLoading } = db.useQuery({
     conversations: {},
-    messages: currentConversationId 
-      ? {
-          $: {
-            where: {
-              conversationId: currentConversationId,
-            },
-          },
-        }
-      : {},
+  });
+
+  const { data: messages, isLoading: messagesLoading } = db.useQuery({
+    messages: {},
+  });
+
+  const { data: issues, isLoading: issuesLoading } = db.useQuery({
     issues: {},
+  });
+
+  const { data: heartbeats } = db.useQuery({
     heartbeats: {},
   });
 
-  const conversations = data?.conversations || [];
-  const messages = data?.messages || [];
-  const dbIssues = data?.issues || [];
-  const heartbeats = data?.heartbeats || [];
+  // Extract arrays from InstantDB response format
+  const heartbeatsArray = heartbeats?.heartbeats || [];
+  const messagesArray = messages?.messages || [];
 
-  // Host heartbeat status
-  const hostHeartbeat = heartbeats.find((h: any) => h.id === 'host' || h.kind === 'host');
-  const hostOnlineThreshold = Platform.OS === 'web' ? 10000 : 20000; // tighter on web
-  const hostOnline = hostHeartbeat ? (Date.now() - (hostHeartbeat.lastSeenAt || 0)) < hostOnlineThreshold : false;
-
-  // Sort messages by timestamp
-  const sortedMessages = [...messages].sort(
-    (a, b) => (a.timestamp || 0) - (b.timestamp || 0)
-  );
-
-  // Track conversation state based on message statuses
   useEffect(() => {
-    if (!currentConversationId || messages.length === 0) {
-      setConversationState("idle");
-      return;
-    }
-
-    const lastMessage = sortedMessages[sortedMessages.length - 1];
+    // Register for push notifications
+    registerForPushNotificationsAsync().then(setPushToken);
     
-    if (lastMessage) {
-      if (lastMessage.status === "pending") {
-        setConversationState("sending");
-      } else if (lastMessage.status === "processing") {
-        setConversationState("waiting_for_claude");
-      } else if (lastMessage.status === "error") {
-        setConversationState("error");
-      } else if (lastMessage.role === "user" && lastMessage.status === "completed") {
-        // User message completed, likely waiting for Claude
-        const hasAssistantResponse = sortedMessages.some(
-          m => m.role === "assistant" && m.timestamp > lastMessage.timestamp
-        );
-        if (!hasAssistantResponse) {
-          setConversationState("claude_responding");
-        } else {
-          setConversationState("idle");
-        }
-      } else {
-        setConversationState("idle");
-      }
-    }
-  }, [messages, currentConversationId, sortedMessages]);
-
-  // Auto-scroll when new messages arrive
-  useEffect(() => {
-    if (messages.length > lastMessageCount.current && autoScroll) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    }
-    lastMessageCount.current = messages.length;
-  }, [messages.length, autoScroll]);
-
-  // Client heartbeat writer (for host supervision). Use stable id per session.
-  useEffect(() => {
-    const kind = Platform.OS === 'web' ? 'web' : 'mobile';
-    let hbId: string | null = null;
-    const write = async () => {
-      try {
-        if (!hbId) hbId = id();
-        await db.transact([
-          tx.heartbeats[hbId].update({ id: hbId, kind, lastSeenAt: Date.now() }),
-        ]);
-      } catch {}
-    };
-    const interval = setInterval(write, 10000);
-    // fire once quickly
-    write();
-    return () => clearInterval(interval);
+    // Check speech recognition capabilities
+    checkSpeechRecognitionAvailability().then(setSpeechCapabilities);
   }, []);
 
-  // TODO: Push notifications require a development build with proper project ID
-  // Currently commented out as it requires:
-  // 1. Creating an EAS project and getting a project ID
-  // 2. Building a development build (not Expo Go)
-  // 3. Configuring APNs certificates for iOS
-  // See: https://docs.expo.dev/versions/latest/sdk/notifications/
-  //
-  // Register for push notifications and store device token in InstantDB
+  // Auto-fill input with speech transcript
   useEffect(() => {
-    console.log('⚠️ Push notifications disabled - requires development build');
-    console.log('📚 See: https://docs.expo.dev/versions/latest/sdk/notifications/');
-    
-    // Commented out until we have a proper development build
-    /*
-    let mounted = true;
-    registerForPushNotificationsAsync().then(async (token) => {
-      if (!mounted || !token) return;
-      try {
-        console.log('💾 Storing push token in database:', token);
-        await db.transact([
-          (tx as any).devices[token].update({
-            id: token,
-            pushToken: token,
-            platform: Platform.OS,
-            updatedAt: Date.now(),
-          }),
-        ]);
-        console.log('✅ Push token stored successfully');
-      } catch (error) {
-        console.error('❌ Failed to store push token:', error);
-      }
-    });
-    return () => { mounted = false; };
-    */
-  }, []);
-
-  // Set up notification listeners
-  useEffect(() => {
-    // Handle notification received while app is in foreground
-    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log('📬 Notification received in foreground:', notification);
-    });
-
-    // Handle notification tap (both foreground and background)
-    const responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
-      console.log('👆 Notification tapped:', response);
-      const data = response.notification.request.content.data as any;
-      const convId = data?.conversationId as string | undefined;
-      if (convId) {
-        setCurrentScreen("conversations");
-        setCurrentConversationId(convId);
-        try { router.push('/'); } catch {}
-      }
-    });
-
-    return () => {
-      notificationListener.remove();
-      responseListener.remove();
-    };
-  }, [router]);
-
-
-  // Handle keyboard shortcuts for web
-  const handleKeyPress = useCallback((event: any) => {
-    if (Platform.OS === 'web' && event.nativeEvent) {
-      const { key, metaKey, ctrlKey } = event.nativeEvent;
-      if (key === 'Enter' && (metaKey || ctrlKey)) {
-        event.preventDefault();
-        sendMessage();
-      }
+    if (transcript && currentScreen === "conversations") {
+      setInputText(transcript);
     }
-  }, [inputText, currentConversationId]);
-
-  // Handle scroll position for showing/hiding scroll button
-  const handleScroll = (event: any) => {
-    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    const isNearBottom = contentOffset.y >= contentSize.height - layoutMeasurement.height - 100;
-    
-    if (!isNearBottom && !showScrollButton) {
-      setShowScrollButton(true);
-      setAutoScroll(false);
-      Animated.timing(scrollButtonOpacity, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    } else if (isNearBottom && showScrollButton) {
-      setShowScrollButton(false);
-      setAutoScroll(true);
-      Animated.timing(scrollButtonOpacity, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    }
-  };
-
-  const scrollToBottom = () => {
-    flatListRef.current?.scrollToEnd({ animated: true });
-    setAutoScroll(true);
-  };
-
-  const createConversation = async () => {
-    const newConversation = {
-      id: id(),
-      userId: "mobile-user",
-      title: `Conversation ${new Date().toLocaleString()}`,
-      status: "active",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-
-    await db.transact([
-      tx.conversations[newConversation.id].update(newConversation),
-    ]);
-
-    setCurrentConversationId(newConversation.id);
-  };
+  }, [transcript, currentScreen]);
 
   const sendMessage = async () => {
-    if (!inputText.trim() || !currentConversationId) return;
-
-    const newMessage = {
-      id: id(),
-      conversationId: currentConversationId,
-      role: "user" as const,
-      content: inputText.trim(),
-      timestamp: Date.now(),
-      status: "pending" as const,
-    };
-
-    await db.transact([
-      tx.messages[newMessage.id].update(newMessage),
-    ]);
-
-    setInputText('');
+    if (!inputText.trim()) return;
     
-    // Auto-scroll to the new message
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-  };
-
-  const createIssue = async (title: string, description: string, priority: "High" | "Medium" | "Low" = "Medium") => {
-    const newIssue = {
-      id: id(),
-      title,
-      description,
-      priority,
-      status: "Todo" as const,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-
-    await db.transact([
-      tx.issues[newIssue.id].update(newIssue),
-    ]);
-  };
-
-  const getStatusIcon = (status?: string) => {
-    switch (status) {
-      case "pending":
-        return "⏳";
-      case "processing":
-        return "⚙️";
-      case "completed":
-        return "✅";
-      case "error":
-        return "❌";
-      default:
-        return "";
+    setConversationState("sending");
+    
+    try {
+      // Create a new message in InstantDB
+      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const conversationId = `conv_${Date.now()}`;
+      
+      await db.transact([
+        db.tx.messages[messageId].update({
+          conversationId,
+          role: "user",
+          content: inputText.trim(),
+          timestamp: Date.now(),
+          status: "pending",
+        }),
+      ]);
+      
+      setInputText('');
+      setConversationState("waiting_for_claude");
+      
+      // The host application will pick up this message and respond
+      
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setConversationState("error");
+      Alert.alert('Error', 'Failed to send message');
     }
   };
 
-  const getConversationStatusText = () => {
-    switch (conversationState) {
-      case "sending":
-        return "Sending message...";
-      case "waiting_for_claude":
-        return "Claude is reading...";
-      case "claude_responding":
-        return "Claude is typing...";
-      case "error":
-        return "Error occurred";
-      default:
-        return null;
+  const handleSpeechStart = async () => {
+    if (!speechCapabilities?.isAvailable) {
+      Alert.alert(
+        "Speech Recognition Unavailable",
+        "Speech recognition is not available on this device. Please enable Siri & Dictation in Settings."
+      );
+      return;
     }
+    await startSpeech();
   };
 
-  const renderMessage = ({ item }: { item: Message }) => (
-    <View style={[
-      styles.messageContainer,
-      item.role === 'user' ? styles.userMessage : 
-      item.role === 'assistant' ? styles.assistantMessage : styles.systemMessage
-    ]}>
-      <View style={styles.messageHeader}>
-        <Text style={styles.messageRole}>
-          {item.role === 'user' ? '👤' : item.role === 'assistant' ? '🤖' : '⚙️'} {item.role.toUpperCase()}
-        </Text>
-        {item.status && (
-          <Text style={styles.messageStatus}>
-            {getStatusIcon(item.status)}
+  const renderConversationsScreen = () => (
+    <View style={styles.screenContainer}>
+      <Text style={styles.screenTitle}>💬 Conversations</Text>
+      
+      {/* Host Status */}
+      <View style={styles.statusSection}>
+        <Text style={styles.sectionTitle}>Host Status</Text>
+        <View style={styles.statusCard}>
+          <Text style={styles.statusText}>
+            {heartbeatsArray.length > 0 ? '🟢 Online' : '🔴 Offline'}
           </Text>
+          {pushToken && (
+            <Text style={styles.pushTokenText}>📱 Push notifications ready</Text>
+          )}
+        </View>
+      </View>
+
+      {/* Speech Input Section */}
+      <View style={styles.speechSection}>
+        <Text style={styles.sectionTitle}>🎙️ Voice Input</Text>
+        <View style={styles.speechControls}>
+          <TouchableOpacity
+            style={[
+              styles.speechButton,
+              isRecognizing && styles.speechButtonActive,
+              { backgroundColor: isRecognizing ? "#EF4444" : "#10B981" },
+            ]}
+            onPress={isRecognizing ? stopSpeech : handleSpeechStart}
+          >
+            <Text style={styles.speechButtonText}>
+              {isRecognizing ? "🛑 Stop" : "🎙️ Start"}
+            </Text>
+          </TouchableOpacity>
+          
+          {speechState !== RecognitionState.IDLE && (
+            <View style={styles.speechStatus}>
+              <Text style={styles.speechStatusText}>
+                {speechState.toUpperCase()}
+              </Text>
+            </View>
+          )}
+        </View>
+        
+        {speechError && (
+          <Text style={styles.errorText}>Error: {speechError}</Text>
+        )}
+        
+        {interimTranscript && (
+          <Text style={styles.interimText}>Listening: {interimTranscript}</Text>
         )}
       </View>
-      <Text style={styles.messageContent}>{item.content}</Text>
-      <Text style={styles.messageTime}>
-        {new Date(item.timestamp).toLocaleTimeString()}
-      </Text>
+
+      {/* Message Input */}
+      <View style={styles.inputSection}>
+        <TextInput
+          style={styles.textInput}
+          value={inputText}
+          onChangeText={setInputText}
+          placeholder="Type a message or use voice input..."
+          multiline
+          maxLength={1000}
+        />
+        <TouchableOpacity
+          style={[
+            styles.sendButton,
+            (!inputText.trim() || conversationState !== "idle") && styles.sendButtonDisabled
+          ]}
+          onPress={sendMessage}
+          disabled={!inputText.trim() || conversationState !== "idle"}
+        >
+          <Text style={styles.sendButtonText}>
+            {conversationState === "sending" ? "⏳" : "📤"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Conversation State */}
+      {conversationState !== "idle" && (
+        <View style={styles.stateSection}>
+          <Text style={styles.stateText}>
+            {conversationState === "sending" && "Sending message..."}
+            {conversationState === "waiting_for_claude" && "Waiting for Claude..."}
+            {conversationState === "claude_responding" && "Claude is responding..."}
+            {conversationState === "error" && "Error occurred"}
+          </Text>
+        </View>
+      )}
+
+      {/* Recent Messages */}
+      <ScrollView style={styles.messagesContainer}>
+        <Text style={styles.sectionTitle}>Recent Messages</Text>
+        {messagesLoading ? (
+          <ActivityIndicator />
+        ) : messagesArray.length > 0 ? (
+          messagesArray
+            .sort((a: any, b: any) => b.timestamp - a.timestamp)
+            .slice(0, 10)
+            .map((message: any) => (
+              <View key={message.id} style={styles.messageCard}>
+                <Text style={styles.messageRole}>{message.role}</Text>
+                <Text style={styles.messageContent}>{message.content}</Text>
+                <Text style={styles.messageTime}>
+                  {new Date(message.timestamp).toLocaleTimeString()}
+                </Text>
+              </View>
+            ))
+        ) : (
+          <Text style={styles.emptyText}>No messages yet</Text>
+        )}
+      </ScrollView>
     </View>
   );
 
-  const renderConversation = ({ item }: { item: Conversation }) => (
-    <TouchableOpacity
-      style={[
-        styles.conversationItem,
-        currentConversationId === item.id && styles.activeConversation
-      ]}
-      onPress={() => setCurrentConversationId(item.id)}
-    >
-      <Text style={styles.conversationTitle}>{item.title}</Text>
-      <Text style={styles.conversationDate}>
-        {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}
-      </Text>
-      {item.claudeSessionId && (
-        <Text style={styles.sessionIndicator}>🔄</Text>
+  const renderSpeechScreen = () => (
+    <View style={styles.screenContainer}>
+      <Text style={styles.screenTitle}>🎙️ Speech Recognition Demo</Text>
+      
+      {/* Navigation to Enhanced Demo */}
+      <TouchableOpacity
+        style={[styles.button, { backgroundColor: "#8B5CF6", marginBottom: 20 }]}
+        onPress={() => router.push("/speech-demo")}
+      >
+        <Text style={styles.buttonText}>✨ Try Enhanced Demo</Text>
+      </TouchableOpacity>
+
+      {/* Capabilities Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Device Capabilities</Text>
+        {speechCapabilities ? (
+          <View style={styles.capabilitiesGrid}>
+            <View style={styles.capability}>
+              <Text style={styles.capabilityLabel}>Available</Text>
+              <Text style={styles.capabilityValue}>
+                {speechCapabilities.isAvailable ? "✅" : "❌"}
+              </Text>
+            </View>
+            <View style={styles.capability}>
+              <Text style={styles.capabilityLabel}>On-Device</Text>
+              <Text style={styles.capabilityValue}>
+                {speechCapabilities.supportsOnDevice ? "✅" : "❌"}
+              </Text>
+            </View>
+            <View style={styles.capability}>
+              <Text style={styles.capabilityLabel}>Recording</Text>
+              <Text style={styles.capabilityValue}>
+                {speechCapabilities.supportsRecording ? "✅" : "❌"}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <ActivityIndicator />
+        )}
+      </View>
+
+      {/* Status Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Recognition Status</Text>
+        <View style={[styles.statusCard, { borderColor: getSpeechStateColor() }]}>
+          <Text style={styles.statusEmoji}>{getSpeechStateEmoji()}</Text>
+          <Text style={[styles.statusText, { color: getSpeechStateColor() }]}>
+            {speechState.toUpperCase()}
+          </Text>
+          {isRecognizing && (
+            <View style={styles.pulsingDot}>
+              <View style={[styles.dot, { backgroundColor: getSpeechStateColor() }]} />
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* Controls Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Controls</Text>
+        <View style={styles.buttonGrid}>
+          <TouchableOpacity
+            style={[
+              styles.button,
+              isRecognizing && styles.buttonDisabled,
+              { backgroundColor: "#10B981" },
+            ]}
+            onPress={handleSpeechStart}
+            disabled={isRecognizing}
+          >
+            <Text style={styles.buttonText}>Start</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.button,
+              !isRecognizing && styles.buttonDisabled,
+              { backgroundColor: "#F59E0B" },
+            ]}
+            onPress={stopSpeech}
+            disabled={!isRecognizing}
+          >
+            <Text style={styles.buttonText}>Stop</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.button,
+              !isRecognizing && styles.buttonDisabled,
+              { backgroundColor: "#EF4444" },
+            ]}
+            onPress={abortSpeech}
+            disabled={!isRecognizing}
+          >
+            <Text style={styles.buttonText}>Abort</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.button,
+              { backgroundColor: "#6B7280" },
+            ]}
+            onPress={resetSpeech}
+          >
+            <Text style={styles.buttonText}>Reset</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Error Section */}
+      {speechError && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Error</Text>
+          <View style={styles.errorCard}>
+            <Text style={styles.errorText}>{speechError}</Text>
+          </View>
+        </View>
       )}
-    </TouchableOpacity>
+
+      {/* Transcript Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Live Transcript</Text>
+        <View style={styles.transcriptCard}>
+          {transcript || interimTranscript ? (
+            <>
+              {transcript && (
+                <Text style={styles.transcriptText}>{transcript}</Text>
+              )}
+              {interimTranscript && (
+                <Text style={styles.interimText}>{interimTranscript}</Text>
+              )}
+            </>
+          ) : (
+            <Text style={styles.placeholderText}>
+              {isRecognizing ? "Listening..." : "Press Start to begin transcription"}
+            </Text>
+          )}
+        </View>
+      </View>
+
+      {/* Recording Info */}
+      {recordingUri && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Recording Saved</Text>
+          <View style={styles.recordingCard}>
+            <Text style={styles.recordingText}>📁 Audio file saved</Text>
+            <Text style={styles.recordingPath} numberOfLines={2}>
+              {recordingUri}
+            </Text>
+          </View>
+        </View>
+      )}
+    </View>
   );
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "High": return "#FF6B6B";
-      case "Medium": return "#FFD93D";
-      case "Low": return "#6BCF7F";
-      default: return "#999";
+  const getSpeechStateColor = () => {
+    switch (speechState) {
+      case RecognitionState.IDLE:
+        return "#6B7280";
+      case RecognitionState.STARTING:
+        return "#F59E0B";
+      case RecognitionState.RECOGNIZING:
+        return "#10B981";
+      case RecognitionState.STOPPING:
+        return "#F59E0B";
+      case RecognitionState.ERROR:
+        return "#EF4444";
+      default:
+        return "#6B7280";
     }
   };
 
-  const renderIssue = ({ item }: { item: Issue }) => (
-    <View style={styles.issueContainer}>
-      <View style={styles.issueHeader}>
-        <Text style={styles.issueTitle}>{item.title}</Text>
-        <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(item.priority) }]}>
-          <Text style={styles.priorityText}>{item.priority}</Text>
-        </View>
-      </View>
-      <Text style={styles.issueDescription}>{item.description}</Text>
-      <View style={styles.issueFooter}>
-        {/* <Text style={[styles.statusBadge, styles[`status${item.status.replace(' ', '')}`]}> */}
-        <Text>
-          {item.status}
-        </Text>
-      </View>
-    </View>
-  );
-
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF6B35" />
-          <Text style={styles.loadingText}>Loading conversations...</Text>
-        </View>
-        <StatusBar style="auto" />
-      </SafeAreaView>
-    );
-  }
-
-  if (error) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Text style={styles.errorText}>Error loading data: {error.message}</Text>
-        <StatusBar style="auto" />
-      </SafeAreaView>
-    );
-  }
+  const getSpeechStateEmoji = () => {
+    switch (speechState) {
+      case RecognitionState.IDLE:
+        return "😴";
+      case RecognitionState.STARTING:
+        return "🚀";
+      case RecognitionState.RECOGNIZING:
+        return "🎙️";
+      case RecognitionState.STOPPING:
+        return "⏸️";
+      case RecognitionState.ERROR:
+        return "❌";
+      default:
+        return "❓";
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
-        style={styles.keyboardAvoid}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-      >
-        <Text style={styles.title}>Claude Code Remote Control {hostOnline ? '🟢' : '🔴'}</Text>
+      {/* Navigation */}
+      <View style={styles.navigation}>
+        <TouchableOpacity
+          style={[
+            styles.navButton,
+            currentScreen === "conversations" && styles.navButtonActive
+          ]}
+          onPress={() => setCurrentScreen("conversations")}
+        >
+          <Text style={styles.navButtonText}>💬</Text>
+        </TouchableOpacity>
         
-        {/* Navigation Header */}
-        {currentScreen === "conversations" && (
-          <View style={styles.conversationsSection}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Conversations</Text>
-              <View style={styles.buttonGroup}>
-                <TouchableOpacity 
-                  style={[styles.createButton, styles.demoButton]} 
-                  onPress={() => router.push('/demo')}
-                >
-                  <Text style={styles.createButtonText}>Demo</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.createButton, styles.helloButton]} 
-                  onPress={() => setCurrentScreen("hello")}
-                >
-                  <Text style={styles.createButtonText}>Hello</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.createButton, styles.issuesButton]} 
-                  onPress={() => router.push('/issues')}
-                >
-                  <Text style={styles.createButtonText}>Issues</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.createButton, styles.logsButton]} 
-                  onPress={() => router.push('/logs')}
-                >
-                  <Text style={styles.createButtonText}>Logs</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.createButton} onPress={createConversation}>
-                  <Text style={styles.createButtonText}>+ New</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-            <FlatList
-              data={conversations}
-              renderItem={renderConversation}
-              keyExtractor={(item) => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.conversationsList}
-            />
-          </View>
-        )}
+        <TouchableOpacity
+          style={[
+            styles.navButton,
+            currentScreen === "speech" && styles.navButtonActive
+          ]}
+          onPress={() => setCurrentScreen("speech")}
+        >
+          <Text style={styles.navButtonText}>🎙️</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[
+            styles.navButton,
+            currentScreen === "issues" && styles.navButtonActive
+          ]}
+          onPress={() => {
+            setCurrentScreen("issues");
+            router.push("/issues");
+          }}
+        >
+          <Text style={styles.navButtonText}>🐛</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[
+            styles.navButton,
+            currentScreen === "hello" && styles.navButtonActive
+          ]}
+          onPress={() => {
+            setCurrentScreen("hello");
+            router.push("/hello");
+          }}
+        >
+          <Text style={styles.navButtonText}>👋</Text>
+        </TouchableOpacity>
+      </View>
 
-        {/* Hello Screen */}
-        {currentScreen === "hello" && (
-          <View style={styles.helloScreen}>
-            <View style={styles.sectionHeader}>
-              <TouchableOpacity 
-                style={styles.backButton} 
-                onPress={() => setCurrentScreen("conversations")}
-              >
-                <Text style={styles.backButtonText}>← Back</Text>
-              </TouchableOpacity>
-              <Text style={styles.sectionTitle}>Hello Screen</Text>
-              <View />
-            </View>
-            <View style={styles.helloContent}>
-              <Text style={styles.helloText}>Hello!</Text>
-            </View>
-          </View>
-        )}
-
-        {/* Status Indicator */}
-        {currentScreen === "conversations" && conversationState !== "idle" && (
-          <View style={styles.statusBar}>
-            <ActivityIndicator size="small" color="#FF6B35" />
-            <Text style={styles.statusText}>{getConversationStatusText()}</Text>
-          </View>
-        )}
-
-        {/* Messages List */}
-        {currentScreen === "conversations" && currentConversationId && (
-          <View style={styles.messagesSection}>
-            <Text style={styles.sectionTitle}>Messages</Text>
-            <FlatList
-              ref={flatListRef}
-              data={sortedMessages}
-              renderItem={renderMessage}
-              keyExtractor={(item) => item.id}
-              style={styles.messagesList}
-              onScroll={handleScroll}
-              scrollEventThrottle={16}
-              onContentSizeChange={() => {
-                if (autoScroll) {
-                  flatListRef.current?.scrollToEnd({ animated: true });
-                }
-              }}
-            />
-            
-            {/* Floating Scroll to Bottom Button */}
-            <Animated.View 
-              style={[
-                styles.scrollToBottomButton,
-                { opacity: scrollButtonOpacity }
-              ]}
-              pointerEvents={showScrollButton ? "auto" : "none"}
-            >
-              <TouchableOpacity onPress={scrollToBottom}>
-                <Text style={styles.scrollButtonText}>⬇️</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </View>
-        )}
-
-        {/* Message Input */}
-        {currentScreen === "conversations" && currentConversationId && (
-          <View style={styles.inputSection}>
-            <TextInput
-              style={styles.textInput}
-              value={inputText}
-              onChangeText={setInputText}
-              placeholder={Platform.OS === 'web' ? "Type a message... (⌘+Enter to send)" : "Type a message..."}
-              multiline
-              editable={conversationState !== "sending"}
-              onKeyPress={handleKeyPress}
-            />
-            <TouchableOpacity 
-              style={[
-                styles.sendButton,
-                (!inputText.trim() || conversationState === "sending") && styles.sendButtonDisabled
-              ]} 
-              onPress={sendMessage}
-              disabled={!inputText.trim() || conversationState === "sending"}
-            >
-              <Text style={styles.sendButtonText}>
-                {conversationState === "sending" ? "..." : "Send"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {currentScreen === "conversations" && !currentConversationId && conversations.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No conversations yet.</Text>
-            <TouchableOpacity style={styles.createButton} onPress={createConversation}>
-              <Text style={styles.createButtonText}>Create First Conversation</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </KeyboardAvoidingView>
-      <StatusBar style="auto" />
+      {/* Screen Content */}
+      <ScrollView style={styles.content}>
+        {currentScreen === "conversations" && renderConversationsScreen()}
+        {currentScreen === "speech" && renderSpeechScreen()}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -694,333 +582,291 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: "#F9FAFB",
   },
-  keyboardAvoid: {
+  navigation: {
+    flexDirection: "row",
+    backgroundColor: "white",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  navButton: {
     flex: 1,
-    padding: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    color: '#666',
-  },
-  errorText: {
-    color: 'red',
-    textAlign: 'center',
-    margin: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 24,
-    color: '#1e293b',
-    letterSpacing: -0.5,
-  },
-  conversationsSection: {
-    marginBottom: 10,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1e293b',
-    letterSpacing: -0.3,
-  },
-  createButton: {
-    backgroundColor: '#3b82f6',
-    paddingHorizontal: 16,
+    alignItems: "center",
     paddingVertical: 10,
     borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginHorizontal: 5,
   },
-  createButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 14,
+  navButtonActive: {
+    backgroundColor: "#EBF8FF",
   },
-  conversationsList: {
-    maxHeight: 80,
+  navButtonText: {
+    fontSize: 24,
   },
-  conversationItem: {
-    backgroundColor: 'white',
-    padding: 16,
-    marginRight: 12,
-    borderRadius: 12,
-    minWidth: 140,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  activeConversation: {
-    backgroundColor: '#eff6ff',
-    borderColor: '#3b82f6',
-    borderWidth: 2,
-    shadowColor: '#3b82f6',
-    shadowOpacity: 0.15,
-  },
-  conversationTitle: {
-    fontWeight: '600',
-    color: '#333',
-    fontSize: 12,
-  },
-  conversationDate: {
-    fontSize: 10,
-    color: '#666',
-    marginTop: 4,
-  },
-  sessionIndicator: {
-    position: 'absolute',
-    top: 5,
-    right: 5,
-    fontSize: 12,
-  },
-  statusBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fef3c7',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#fbbf24',
-  },
-  statusText: {
-    marginLeft: 8,
-    color: '#d97706',
-    fontStyle: 'italic',
-    fontWeight: '500',
-  },
-  messagesSection: {
+  content: {
     flex: 1,
+  },
+  screenContainer: {
+    padding: 20,
+  },
+  screenTitle: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#111827",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  statusSection: {
+    marginBottom: 20,
+  },
+  speechSection: {
+    marginBottom: 20,
+  },
+  speechControls: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 10,
-    position: 'relative',
   },
-  messagesList: {
-    flex: 1,
+  speechButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginRight: 15,
   },
-  messageContainer: {
-    backgroundColor: 'white',
-    padding: 16,
-    marginVertical: 6,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
+  speechButtonActive: {
+    backgroundColor: "#EF4444",
   },
-  messageHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
+  speechButtonText: {
+    color: "white",
+    fontWeight: "600",
   },
-  userMessage: {
-    backgroundColor: '#eff6ff',
-    marginLeft: 24,
-    borderColor: '#dbeafe',
+  speechStatus: {
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
   },
-  assistantMessage: {
-    backgroundColor: '#f0fdf4',
-    marginRight: 24,
-    borderColor: '#dcfce7',
-  },
-  systemMessage: {
-    backgroundColor: '#FFF3CD',
-  },
-  messageRole: {
+  speechStatusText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#666',
-  },
-  messageStatus: {
-    fontSize: 12,
-  },
-  messageContent: {
-    fontSize: 16,
-    color: '#333',
-    marginBottom: 4,
-  },
-  messageTime: {
-    fontSize: 10,
-    color: '#999',
-    textAlign: 'right',
-  },
-  scrollToBottomButton: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    backgroundColor: '#3b82f6',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#3b82f6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  scrollButtonText: {
-    fontSize: 20,
+    color: "#6B7280",
+    fontWeight: "600",
   },
   inputSection: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    flexDirection: "row",
+    marginBottom: 20,
+    alignItems: "flex-end",
   },
   textInput: {
     flex: 1,
-    borderWidth: 2,
-    borderColor: '#e2e8f0',
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
     borderRadius: 8,
     padding: 12,
-    marginRight: 12,
-    maxHeight: 120,
-    fontSize: 16,
-    backgroundColor: '#f8fafc',
+    marginRight: 10,
+    backgroundColor: "white",
+    maxHeight: 100,
   },
   sendButton: {
-    backgroundColor: '#10b981',
-    paddingHorizontal: 20,
+    backgroundColor: "#3B82F6",
     paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 8,
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
   },
   sendButtonDisabled: {
-    backgroundColor: '#ccc',
+    opacity: 0.5,
   },
   sendButtonText: {
-    color: 'white',
-    fontWeight: '600',
+    color: "white",
+    fontSize: 18,
   },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: '#666',
+  stateSection: {
+    backgroundColor: "#FEF3C7",
+    padding: 12,
+    borderRadius: 8,
     marginBottom: 20,
   },
-  buttonGroup: {
-    flexDirection: 'row',
-    gap: 8,
+  stateText: {
+    color: "#92400E",
+    textAlign: "center",
+    fontWeight: "600",
   },
-  demoButton: {
-    backgroundColor: '#8b5cf6',
+  messagesContainer: {
+    maxHeight: 300,
   },
-  helloButton: {
-    backgroundColor: '#10b981',
-  },
-  issuesButton: {
-    backgroundColor: '#f59e0b',
-  },
-  logsButton: {
-    backgroundColor: '#6b7280',
-  },
-  backButton: {
-    backgroundColor: '#6c757d',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  backButtonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  helloScreen: {
-    flex: 1,
-  },
-  helloContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  helloText: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  issueContainer: {
-    backgroundColor: 'white',
+  messageCard: {
+    backgroundColor: "white",
     padding: 12,
-    marginVertical: 4,
     borderRadius: 8,
-    shadowColor: '#000',
+    marginBottom: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: "#3B82F6",
+  },
+  messageRole: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  messageContent: {
+    fontSize: 14,
+    color: "#111827",
+    marginVertical: 4,
+  },
+  messageTime: {
+    fontSize: 10,
+    color: "#9CA3AF",
+  },
+  emptyText: {
+    textAlign: "center",
+    color: "#6B7280",
+    fontStyle: "italic",
+    marginTop: 20,
+  },
+  errorText: {
+    color: "#EF4444",
+    fontSize: 12,
+    marginTop: 5,
+  },
+  interimText: {
+    color: "#6B7280",
+    fontSize: 12,
+    fontStyle: "italic",
+    marginTop: 5,
+  },
+  pushTokenText: {
+    fontSize: 12,
+    color: "#059669",
+    marginTop: 4,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 12,
+  },
+  statusCard: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 15,
+    borderWidth: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
   },
-  issueHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  issueTitle: {
+  statusText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    flex: 1,
+    fontWeight: "600",
   },
-  priorityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    marginLeft: 8,
+  statusEmoji: {
+    fontSize: 24,
+    marginRight: 8,
   },
-  priorityText: {
+  pulsingDot: {
+    marginLeft: 12,
+  },
+  dot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  section: {
+    marginBottom: 25,
+  },
+  capabilitiesGrid: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 15,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  capability: {
+    alignItems: "center",
+  },
+  capabilityLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: 'white',
+    color: "#6B7280",
+    marginBottom: 5,
   },
-  issueDescription: {
-    fontSize: 14,
-    color: '#666',
+  capabilityValue: {
+    fontSize: 24,
+  },
+  buttonGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  button: {
+    flex: 1,
+    minWidth: "45%",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  buttonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  errorCard: {
+    backgroundColor: "#FEE2E2",
+    borderRadius: 12,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+  },
+  transcriptCard: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 20,
+    minHeight: 150,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  transcriptText: {
+    fontSize: 16,
+    color: "#111827",
+    lineHeight: 24,
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: "#9CA3AF",
+    fontStyle: "italic",
+  },
+  recordingCard: {
+    backgroundColor: "#F0FDF4",
+    borderRadius: 12,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: "#86EFAC",
+  },
+  recordingText: {
+    fontSize: 16,
+    color: "#166534",
+    fontWeight: "600",
     marginBottom: 8,
   },
-  issueFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  recordingPath: {
+    fontSize: 12,
+    color: "#15803D",
+    fontFamily: "monospace",
   },
 });
