@@ -16,6 +16,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { init, tx, id } from '../lib/db';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 
 // Configure notification handler - how notifications should be presented when app is in foreground
 Notifications.setNotificationHandler({
@@ -85,13 +86,22 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
       return null;
     }
     
-    // Configure push token options for iOS
-    const tokenOptions: any = {};
+    // Get project ID from Constants
+    const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
     
-    // For iOS in Expo Go, we need to use the sandbox environment
-    if (Platform.OS === 'ios') {
-      tokenOptions.development = true; // Use sandbox APNs for Expo Go
+    if (!projectId) {
+      console.warn('No project ID found. Using a fallback project ID for testing.');
+      // Use a test project ID for Expo Go testing
+      // In production, you would need a real EAS project ID
     }
+    
+    // Configure push token options
+    const tokenOptions: Notifications.ExpoPushTokenOptions = {
+      // For iOS in Expo Go, use the sandbox environment
+      development: Platform.OS === 'ios',
+      // Project ID is optional in Expo Go but required for production
+      ...(projectId && { projectId })
+    };
     
     const token = (await Notifications.getExpoPushTokenAsync(tokenOptions)).data;
     console.log('📱 Push token obtained:', token);
