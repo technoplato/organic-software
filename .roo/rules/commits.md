@@ -1,0 +1,5 @@
+Please commit your changes in small bite-sized chunks according to the user instructions. What I mean by that is nice commit messages that are brief and describe the set of changes you've made and then in the commit description include some of the verbatim instructions from the user that appear to have been spoken or written to you from the user and not supporting information in the context that you receive.
+
+Don't always commit all of the files at once, but rather be thoughtful on how you commit things so that changes that are grouped together and commits are semantically related and can be reverted and modified together.
+
+Always aim to have a clean get area so that changes can be rolled back easily. And if there are changes active that you didn't make, please ask the user what they'd like to do with them and what changes they had to do with.
