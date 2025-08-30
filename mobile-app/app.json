@@ -14,7 +14,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "This app uses the microphone for speech recognition to transcribe your voice.",
+        "NSSpeechRecognitionUsageDescription": "This app uses speech recognition to convert your speech to text."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +31,15 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-notifications"
+      "expo-notifications",
+      "expo-dev-client",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to use the microphone for speech transcription.",
+          "speechRecognitionPermission": "Allow $(PRODUCT_NAME) to use speech recognition to convert your voice to text."
+        }
+      ]
     ]
   }
 }
