@@ -378,12 +378,22 @@ class Supervisor {
     if (res.status !== 0) {
       console.error('❌ npm install failed');
       await this.logToDb('deps', 'npm install failed for mobile-app', { status: res.status });
-      return;
+      // Exit with error code
+      process.exit(1);
     }
     await this.logToDb('deps', 'npm install completed for mobile-app');
+    console.log('✅ Dependencies installed successfully');
     // If running in one-off mode, detach bundler so this command exits
     const detached = process.env.SUPERVISOR_DETACH_BUNDLER === '1';
-    this.startBundler(detached);
+    if (detached) {
+      console.log('🚀 Starting bundler in detached mode...');
+      await this.startBundler(true);
+    } else {
+      console.log('🚀 Restarting bundler...');
+      this.restartBundler();
+    }
+    // Exit after completing the task
+    process.exit(0);
   }
 
   private async checkBundleForErrors() {
