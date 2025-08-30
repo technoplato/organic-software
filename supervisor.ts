@@ -4,8 +4,13 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import net from 'node:net';
 import { init, tx, id } from '@instantdb/node';
 import { execSync } from 'node:child_process';
+import * as dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 const APP_ID = process.env.INSTANTDB_APP_ID || process.env.EXPO_PUBLIC_INSTANTDB_APP_ID || '';
+console.log('🔑 Supervisor APP_ID:', APP_ID ? 'configured' : 'missing');
 const CHECK_MS = 10_000;
 const STALE_MS = 30_000;
 const ZSCALER_SCRIPT_DIR = '/Users/mlustig/dev/tools/zscaler-auto-disabler';
@@ -31,6 +36,7 @@ class Supervisor {
   private handlerBackoff = backoffGen();
   private bundlerBackoff = backoffGen();
   private interval?: NodeJS.Timeout;
+  private bundleCheckInterval?: NodeJS.Timeout;
   private db = APP_ID ? init({ appId: APP_ID }) : null;
   private handlerExitTimes: number[] = [];
   private crashWindowMs = 60_000;
@@ -48,12 +54,15 @@ class Supervisor {
     this.startHandler();
     this.startBundler();
     this.interval = setInterval(() => this.checkHealth(), CHECK_MS) as any;
+    // Check for bundle errors every 10 seconds
+    this.bundleCheckInterval = setInterval(() => this.checkBundleForErrors(), 10000) as any;
     process.on('SIGINT', () => this.stop());
   }
 
   stop() {
     console.log('\n🛑 Stopping supervisor');
     if (this.interval) clearInterval(this.interval);
+    if (this.bundleCheckInterval) clearInterval(this.bundleCheckInterval);
     this.kill('handler');
     this.kill('bundler');
     process.exit(0);
@@ -297,10 +306,17 @@ class Supervisor {
       
       this.lastExpoErrorSig = sig;
       this.lastExpoErrorAt = now;
-      console.log('🧨 Detected Expo error - dispatching to Claude');
+      console.log('🧨 Detected Expo error:', line.slice(0, 100));
+      
+      // Determine error type from the pattern
+      let errorType = 'unknown';
+      if (/SyntaxError/i.test(line)) errorType = 'SyntaxError';
+      else if (/TransformError/i.test(line)) errorType = 'TransformError';
+      else if (/Module.*not found/i.test(line)) errorType = 'ModuleNotFound';
+      else if (/Failed building/i.test(line)) errorType = 'BuildError';
       
       // Dispatch error to errors table for Claude to handle
-      this.dispatchErrorToClaude(fullError, hit.source);
+      this.dispatchErrorToClaude(fullError, errorType);
     } catch {
       // ignore
     }
@@ -349,6 +365,46 @@ class Supervisor {
     // If running in one-off mode, detach bundler so this command exits
     const detached = process.env.SUPERVISOR_DETACH_BUNDLER === '1';
     this.startBundler(detached);
+  }
+
+  private async checkBundleForErrors() {
+    if (!this.expoPort || !this.bundler) return;
+    
+    try {
+      // Fetch the iOS bundle to check for errors
+      const response = await fetch(`http://localhost:${this.expoPort}/index.ts.bundle?platform=ios&dev=true`);
+      const text = await response.text();
+      
+      // Check if response contains an error
+      if (text.includes('"type":"TransformError"') || text.includes('"name":"SyntaxError"')) {
+        try {
+          const errorData = JSON.parse(text);
+          if (errorData.type === 'TransformError' || errorData.name === 'SyntaxError') {
+            const errorContent = errorData.message || text;
+            const errorType = errorData.name || 'TransformError';
+            
+            // Check for deduplication
+            const now = Date.now();
+            const sig = errorContent.slice(0, 200);
+            if (this.lastExpoErrorSig === sig && now - this.lastExpoErrorAt < 15_000) return;
+            
+            this.lastExpoErrorSig = sig;
+            this.lastExpoErrorAt = now;
+            
+            console.log('🧨 Detected Expo bundle error:', errorType);
+            console.log('📍 Error location:', errorData.filename, 'line', errorData.lineNumber);
+            
+            // Dispatch to Claude
+            this.dispatchErrorToClaude(errorContent, errorType);
+          }
+        } catch (parseErr) {
+          // If we can't parse it, still log that we found an error
+          console.log('🧨 Detected Expo bundle error (unparseable)');
+        }
+      }
+    } catch (err) {
+      // Ignore fetch errors - bundler might not be ready yet
+    }
   }
 
   private recoverFromCrashes() {

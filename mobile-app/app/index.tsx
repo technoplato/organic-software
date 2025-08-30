@@ -15,6 +15,18 @@ import {
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { init, tx, id } from '../lib/db';
 import { useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+
+// Configure notification handler - how notifications should be presented when app is in foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 // InstantDB configuration
 const db = init({
@@ -53,6 +65,43 @@ interface Issue {
   status: "Todo" | "In Progress" | "Done";
 }
 
+// Push notification registration helper
+async function registerForPushNotificationsAsync(): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    return null;
+  }
+
+  try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    
+    if (finalStatus !== 'granted') {
+      console.warn('Push notification permission not granted');
+      return null;
+    }
+    
+    // Configure push token options for iOS
+    const tokenOptions: any = {};
+    
+    // For iOS in Expo Go, we need to use the sandbox environment
+    if (Platform.OS === 'ios') {
+      tokenOptions.development = true; // Use sandbox APNs for Expo Go
+    }
+    
+    const token = (await Notifications.getExpoPushTokenAsync(tokenOptions)).data;
+    console.log('📱 Push token obtained:', token);
+    return token;
+  } catch (error) {
+    console.error('Error registering for push notifications:', error);
+    return null;
+  }
+}
+
 export default function App() {
   // Intentional syntax error injection toggle
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -60,7 +109,7 @@ export default function App() {
   // Dynamic injection to actually break the bundle when set
   if (__INJECT_SYNTAX_ERROR__) {
     // @ts-ignore
-    eval('(()=>{ const oops = ; })()');
+    eval('(()=>{ throw new Error("Intentional syntax error for testing"); })()');
   }
   const router = useRouter();
   const [currentScreen, setCurrentScreen] = useState<Screen>("conversations");
@@ -211,6 +260,7 @@ export default function App() {
     registerForPushNotificationsAsync().then(async (token) => {
       if (!mounted || !token) return;
       try {
+        console.log('💾 Storing push token in database:', token);
         await db.transact([
           (tx as any).devices[token].update({
             id: token,
@@ -219,23 +269,37 @@ export default function App() {
             updatedAt: Date.now(),
           }),
         ]);
-      } catch {}
+        console.log('✅ Push token stored successfully');
+      } catch (error) {
+        console.error('❌ Failed to store push token:', error);
+      }
     });
     return () => { mounted = false; };
   }, []);
 
-  // Navigate to conversation on notification tap
+  // Set up notification listeners
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+    // Handle notification received while app is in foreground
+    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
+      console.log('📬 Notification received in foreground:', notification);
+    });
+
+    // Handle notification tap (both foreground and background)
+    const responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
+      console.log('👆 Notification tapped:', response);
       const data = response.notification.request.content.data as any;
       const convId = data?.conversationId as string | undefined;
       if (convId) {
-        setCurrentScreen(conversations);
+        setCurrentScreen("conversations");
         setCurrentConversationId(convId);
-        try { router.push(/); } catch {}
+        try { router.push('/'); } catch {}
       }
     });
-    return () => sub.remove();
+
+    return () => {
+      notificationListener.remove();
+      responseListener.remove();
+    };
   }, [router]);
 
 
