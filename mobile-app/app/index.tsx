@@ -54,6 +54,14 @@ interface Issue {
 }
 
 export default function App() {
+  // Intentional syntax error injection toggle
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const __INJECT_SYNTAX_ERROR__ = Boolean(process.env.EXPO_PUBLIC_INJECT_SYNTAX_ERROR === '1');
+  // Dynamic injection to actually break the bundle when set
+  if (__INJECT_SYNTAX_ERROR__) {
+    // @ts-ignore
+    eval('(()=>{ const oops = ; })()');
+  }
   const router = useRouter();
   const [currentScreen, setCurrentScreen] = useState<Screen>("conversations");
   const [inputText, setInputText] = useState('');
@@ -196,6 +204,40 @@ export default function App() {
     write();
     return () => clearInterval(interval);
   }, []);
+
+  // Register for push notifications and store device token in InstantDB
+  useEffect(() => {
+    let mounted = true;
+    registerForPushNotificationsAsync().then(async (token) => {
+      if (!mounted || !token) return;
+      try {
+        await db.transact([
+          (tx as any).devices[token].update({
+            id: token,
+            pushToken: token,
+            platform: Platform.OS,
+            updatedAt: Date.now(),
+          }),
+        ]);
+      } catch {}
+    });
+    return () => { mounted = false; };
+  }, []);
+
+  // Navigate to conversation on notification tap
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as any;
+      const convId = data?.conversationId as string | undefined;
+      if (convId) {
+        setCurrentScreen(conversations);
+        setCurrentConversationId(convId);
+        try { router.push(/); } catch {}
+      }
+    });
+    return () => sub.remove();
+  }, [router]);
+
 
   // Handle keyboard shortcuts for web
   const handleKeyPress = useCallback((event: any) => {
