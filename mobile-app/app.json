@@ -16,16 +16,21 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "This app uses the microphone for speech recognition to transcribe your voice.",
-        "NSSpeechRecognitionUsageDescription": "This app uses speech recognition to convert your speech to text."
-      }
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone for speech transcription.",
+        "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition to convert your voice to text.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "ai.mycel.organic-software"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -40,6 +45,11 @@
           "speechRecognitionPermission": "Allow $(PRODUCT_NAME) to use speech recognition to convert your voice to text."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "2ec7cfb8-9161-4998-b8e2-c0c71aedf1aa"
+      }
+    }
   }
 }

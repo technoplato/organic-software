@@ -16,29 +16,50 @@ eas login
 
 ## Build Commands
 
-### For iOS Simulator
+### EAS Build (Cloud)
+
+#### For iOS Simulator
 ```bash
 npm run build:ios:simulator
 ```
-This creates a build that can be installed on the iOS Simulator.
+This creates a build on EAS servers that can be installed on the iOS Simulator.
 
-### For iOS Device
+#### For iOS Device
 ```bash
 npm run build:ios
 ```
-This creates a build that can be installed on physical iOS devices (requires Apple Developer account).
+This creates a build on EAS servers that can be installed on physical iOS devices (requires Apple Developer account).
 
-### Local Prebuild (to generate iOS folder)
+### Local Build (On Your Machine)
+
+#### Prerequisites for Local Build
+- Xcode installed (latest version recommended)
+- iOS Simulator or connected iOS device
+- CocoaPods installed: `sudo gem install cocoapods`
+
+#### Generate Native iOS Project
 ```bash
 npm run prebuild
 ```
 This generates the native iOS project locally without building.
 
-### Run on iOS (local build)
+#### Build and Run Locally (Debug)
+```bash
+npm run build:ios:local
+```
+This builds and runs the app locally using Xcode in Debug configuration.
+
+#### Build and Run Locally (Release)
+```bash
+npm run build:ios:local:release
+```
+This builds and runs the app locally using Xcode in Release configuration.
+
+#### Alternative: Direct Run
 ```bash
 npm run run:ios
 ```
-This builds and runs the app locally using Xcode.
+This is equivalent to `build:ios:local` - builds and runs the app locally.
 
 ## When to Create a New Development Build
 
@@ -83,15 +104,29 @@ This project is configured with:
 ## Development Workflow
 
 1. **First time setup**:
+   
+   **Option A: EAS Build (Recommended for teams)**
    ```bash
    # Install dependencies
    npm install
    
-   # Create development build for simulator
+   # Create development build for simulator on EAS
    npm run build:ios:simulator
    
    # Or for device (requires Apple Developer account)
    npm run build:ios
+   ```
+   
+   **Option B: Local Build (Faster for individual development)**
+   ```bash
+   # Install dependencies
+   npm install
+   
+   # Generate native iOS project
+   npm run prebuild
+   
+   # Build and run locally
+   npm run build:ios:local
    ```
 
 2. **Daily development** (no native changes):

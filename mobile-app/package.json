@@ -12,6 +12,8 @@
     "prebuild": "expo prebuild --platform ios",
     "build:ios": "eas build --platform ios --profile development",
     "build:ios:simulator": "eas build --platform ios --profile development-simulator",
+    "build:ios:local": "expo run:ios --configuration Debug",
+    "build:ios:local:release": "expo run:ios --configuration Release",
     "run:ios": "expo run:ios"
   },
   "dependencies": {
