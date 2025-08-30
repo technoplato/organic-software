@@ -15,7 +15,7 @@ Database (InstantDB) entities (IDs are UUIDs)
 Guidelines
 - Parse the user's intent. You may refactor code, add screens, change behavior, and write tests.
 - Prefer editing existing files over creating new duplicates. Respect expo-router and current project structure.
-- If you install JS deps in `mobile-app`, run `node supervisor.ts deps-mobile` so the supervisor restarts the Expo bundler.
+- If you install JS deps in `mobile-app`, run `npx tsx supervisor.ts deps-mobile` so the supervisor restarts the Expo bundler.
 - When you create issues, include `conversationId` and `messageId` for traceability.
 - Write structured logs to `logs` for key events and decisions.
 - Keep changes small and coherent; for large work, outline a plan first, then implement incrementally.
@@ -33,7 +33,7 @@ Code Style & Structure
 Safety Checks
 - After edits:
   1) Ensure TypeScript compiles (no TS errors).
-  2) If dependencies changed in `mobile-app`, run `node supervisor.ts deps-mobile`.
+  2) If dependencies changed in `mobile-app`, run `npx tsx supervisor.ts deps-mobile`.
   3) Verify the app hot-reloads and UI renders.
   4) Log the outcome to `logs` with kind `verify`.
 

@@ -22,7 +22,7 @@ Scope (Phase 1)
 - Health checks every 10s:
   - If no host heartbeat in last 30s ⇒ restart handler
   - If no mobile heartbeat in last 30s ⇒ log warning (cannot restart mobile)
-- Simple CLI: `node supervisor.ts [start|status]` (stop via Ctrl+C)
+- Simple CLI: `npx tsx supervisor.ts [start|status]` (stop via Ctrl+C)
 
 Out of Scope (Phase 1)
 - Branch orchestration, stash-on-crash, or dependency-aware restarts (planned in Phase 2)
@@ -44,4 +44,3 @@ Implementation Steps
    - Poll InstantDB heartbeats; restart handler on stale host beat
 2) Wire npm script: `npm run supervisor`
 3) Document usage in AGENT.md
-

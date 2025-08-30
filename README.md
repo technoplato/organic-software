@@ -60,9 +60,9 @@ cd mobile-app && npm run web      # Expo Web (browser UI)
 ```
 # Start/stop/manage
 npm run supervisor
-node supervisor.ts restart-handler
-node supervisor.ts restart-bundler
-node supervisor.ts deps-mobile   # stop bundler, npm install in mobile-app, restart bundler
+npx tsx supervisor.ts restart-handler
+npx tsx supervisor.ts restart-bundler
+npx tsx supervisor.ts deps-mobile   # stop bundler, npm install in mobile-app, restart bundler
 
 # Tests (optional; admin token recommended)
 npx tsx tests/test-heartbeats.ts
