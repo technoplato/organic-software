@@ -113,14 +113,6 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
 }
 
 export default function App() {
-  // Intentional syntax error injection toggle
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const __INJECT_SYNTAX_ERROR__ = Boolean(process.env.EXPO_PUBLIC_INJECT_SYNTAX_ERROR === '1');
-  // Dynamic injection to actually break the bundle when set
-  if (__INJECT_SYNTAX_ERROR__) {
-    // @ts-ignore
-    eval('(()=>{ throw new Error("Intentional syntax error for testing"); })()');
-  }
   const router = useRouter();
   const [currentScreen, setCurrentScreen] = useState<Screen>("conversations");
   const [inputText, setInputText] = useState('');
