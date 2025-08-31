@@ -26,9 +26,6 @@ export const useStyles = () => {
 
   const isDark = colorScheme === 'dark';
 
-  console.log({isDark, colorScheme});
-  
-
   const palette: ColorPalette = {
     background: isDark ? '#121212' : '#F9FAFB',
     surface: isDark ? '#1E1E1E' : '#FFFFFF',
