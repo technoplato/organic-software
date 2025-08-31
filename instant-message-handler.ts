@@ -441,29 +441,6 @@ Database (InstantDB) entities (IDs are UUIDs):
     await this.updateMessage(message.id, { status: "processing" });
 
 
-    // Send immediate acknowledgment response
-    const acknowledgmentId = id();
-    const acknowledgmentMessages = [
-      "I received your message and I'm working on it now...",
-      "Got it! Let me handle that for you...",
-      "Message received! Processing your request...",
-      "I'm on it! Working on your request now...",
-      "Understood! Let me take care of that...",
-    ];
-    
-    const randomAck = acknowledgmentMessages[Math.floor(Math.random() * acknowledgmentMessages.length)];
-    
-    await this.updateMessage(acknowledgmentId, {
-      conversationId: message.conversationId,
-      role: "assistant",
-      content: randomAck,
-      timestamp: Date.now(),
-      status: "completed",
-      metadata: { type: "acknowledgment" },
-    });
-    
-    console.log(`📨 Sent immediate acknowledgment: "${randomAck}"`);
-
     try {
       // Get or create session ID for this conversation
       const sessionId = await this.getOrCreateSessionId(message.conversationId);
