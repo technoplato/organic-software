@@ -251,30 +251,6 @@ class ClaudeRemoteControl {
     }
   }
 
-  // Ensure there is at least one example issue present (for initial UI rendering)
-  async ensureSeedIssue(): Promise<void> {
-    try {
-      const result = await db.queryOnce({ issues: { $: { limit: 1 } } });
-      if (!result.data?.issues || result.data.issues.length === 0) {
-        const issueId = id();
-        const seed: Issue = {
-          id: issueId,
-          title: 'First issue',
-          description: 'Seeded by host to demonstrate issues list',
-          priority: 'Medium',
-          status: 'Todo',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        };
-        await db.transact([
-          (tx as any).issues[issueId].update(seed),
-        ]);
-        console.log('📝 Seeded initial issue');
-      }
-    } catch (err) {
-      console.warn('⚠️ Could not ensure seed issue:', err);
-    }
-  }
 
   // Load LLM preamble from docs/llm-prompt.md (once), fallback to built-in
   private loadPreamble(): string {
