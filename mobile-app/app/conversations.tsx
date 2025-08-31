@@ -144,11 +144,11 @@ export default function ConversationsScreen() {
       if (token) {
         try {
           // Save push token to database
-          const deviceId = `device_${Platform.OS}_${Date.now()}`;
+          const deviceDbId = id();
           await db.transact([
-            db.tx.devices[id()].update({
+            db.tx.devices[deviceDbId].update({
               pushToken: token,
-              deviceId,
+              deviceId: deviceDbId,
               platform: Platform.OS,
               updatedAt: Date.now(),
               createdAt: Date.now(),
@@ -175,8 +175,8 @@ export default function ConversationsScreen() {
     
     try {
       // Create a new message in InstantDB
-      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const conversationId = `conv_${Date.now()}`;
+      const messageId = id();
+      const conversationId = id();
       
       await db.transact([
         db.tx.messages[messageId].update({
