@@ -1,5 +1,5 @@
-import { color } from "bun";
 import { StyleSheet, useColorScheme } from "react-native";
+import { useMemo } from "react";
 
 export interface ColorPalette {
   background: string;
@@ -26,7 +26,7 @@ export const useStyles = () => {
 
   const isDark = colorScheme === "dark";
 
-  const palette: ColorPalette = {
+  const palette: ColorPalette = useMemo(() => ({
     background: isDark ? "#121212" : "#F9FAFB",
     surface: isDark ? "#1E1E1E" : "#FFFFFF",
     surfaceAlt1: isDark ? "#23201D" : "#FFF0E6",
@@ -44,9 +44,9 @@ export const useStyles = () => {
     warning: "#F59E0B",
     error: "#EF4444",
     info: "#06B6D4",
-  };
+  }), [isDark]);
 
-  const styles = StyleSheet.create({
+  const styles = useMemo(() => StyleSheet.create({
     // Container styles
     container: {
       flex: 1,
@@ -409,7 +409,7 @@ export const useStyles = () => {
     paddingVertical: {
       paddingVertical: 16,
     },
-  });
+  }), [palette, isDark]);
 
   return {
     styles,

@@ -20,6 +20,10 @@ android/
 *.key
 *.mobileprovision
 
+# Credentials
+credentials.json
+credentials/
+
 # Metro
 .metro-health-check*
 
