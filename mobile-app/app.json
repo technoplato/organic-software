@@ -1,11 +1,11 @@
 {
   "expo": {
+    "userInterfaceStyle": "automatic",
     "name": "mobile-app",
     "slug": "mobile-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "scheme": "mobile-app",
     "splash": {
@@ -14,6 +14,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "userInterfaceStyle": "automatic",
       "supportsTablet": true,
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone for speech transcription.",
@@ -23,6 +24,7 @@
       "bundleIdentifier": "ai.mycel.organic-software"
     },
     "android": {
+      "userInterfaceStyle": "automatic",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"

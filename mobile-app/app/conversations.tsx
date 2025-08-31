@@ -13,7 +13,7 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
-import { init } from "@instantdb/react-native";
+import { init, id } from "@instantdb/react-native";
 import useStyles from "../lib/useStyles";
 
 // Configure notification handler
@@ -136,17 +136,19 @@ export default function ConversationsScreen() {
   const messagesArray = messages?.messages || [];
 
   useEffect(() => {
-    // Register for push notifications and save to database
+    console.log('🔔 Starting push notification registration...');
     registerForPushNotificationsAsync().then(async (token) => {
       setPushToken(token);
+      console.log('🔔 Finished push notification registration. Token:', token);
       
       if (token) {
         try {
           // Save push token to database
           const deviceId = `device_${Platform.OS}_${Date.now()}`;
           await db.transact([
-            db.tx.devices[deviceId].update({
+            db.tx.devices[id()].update({
               pushToken: token,
+              deviceId,
               platform: Platform.OS,
               updatedAt: Date.now(),
               createdAt: Date.now(),
@@ -160,6 +162,7 @@ export default function ConversationsScreen() {
     });
     
     // Handle prefilled text from speech recognition
+    console.log('📝 prefillText value:', prefillText);
     if (prefillText && typeof prefillText === 'string') {
       setInputText(prefillText);
     }

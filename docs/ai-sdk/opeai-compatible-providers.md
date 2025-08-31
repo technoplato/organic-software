@@ -1,0 +1,371 @@
+AI SDK 5 is available now.
+
+View Announcement
+AI SDK Providers
+
+AI Gateway
+xAI Grok
+Vercel
+OpenAI
+Azure OpenAI
+Anthropic
+Amazon Bedrock
+Groq
+Fal
+DeepInfra
+Google Generative AI
+Google Vertex AI
+Mistral AI
+Together.ai
+Cohere
+Fireworks
+DeepSeek
+Cerebras
+Replicate
+Perplexity
+Luma
+ElevenLabs
+AssemblyAI
+Deepgram
+Gladia
+LMNT
+Hume
+Rev.ai
+OpenAI Compatible Providers
+
+Writing a Custom Provider
+LM Studio
+NVIDIA NIM
+Baseten
+Heroku
+Community Providers
+
+Automatic1111
+Writing a Custom Provider
+Qwen
+Ollama
+A2A
+Requesty
+FriendliAI
+Portkey
+Cloudflare Workers AI
+Cloudflare AI Gateway
+OpenRouter
+Azure AI
+SAP AI Core
+Crosshatch
+Mixedbread
+Voyage AI
+Jina AI
+Mem0
+Letta
+Anthropic Vertex
+Spark
+Inflection AI
+LangDB
+Zhipu AI
+SambaNova
+Dify
+Sarvam
+AI/ML API
+Claude Code
+Built-in AI
+Gemini CLI
+Adapters
+
+LangChain
+LlamaIndex
+Observability Integrations
+
+Braintrust
+Helicone
+Laminar
+Langfuse
+LangSmith
+LangWatch
+Maxim
+Patronus
+Scorecard
+SigNoz
+Traceloop
+Weave
+OpenAI Compatible Providers
+OpenAI Compatible Providers
+You can use the OpenAI Compatible Provider package to use language model providers that implement the OpenAI API.
+
+Below we focus on the general setup and provider instance creation. You can also write a custom provider package leveraging the OpenAI Compatible package.
+
+We provide detailed documentation for the following OpenAI compatible providers:
+
+LM Studio
+NIM
+Baseten
+Heroku
+The general setup and provider instance creation is the same for all of these providers.
+
+Setup
+The OpenAI Compatible provider is available via the @ai-sdk/openai-compatible module. You can install it with:
+
+pnpm
+npm
+yarn
+bun
+pnpm add @ai-sdk/openai-compatible
+Provider Instance
+To use an OpenAI compatible provider, you can create a custom provider instance with the createOpenAICompatible function from @ai-sdk/openai-compatible:
+
+
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+
+const provider = createOpenAICompatible({
+  name: 'provider-name',
+  apiKey: process.env.PROVIDER_API_KEY,
+  baseURL: 'https://api.provider.com/v1',
+  includeUsage: true, // Include usage information in streaming responses
+});
+You can use the following optional settings to customize the provider instance:
+
+baseURL string
+
+Set the URL prefix for API calls.
+
+apiKey string
+
+API key for authenticating requests. If specified, adds an Authorization header to request headers with the value Bearer <apiKey>. This will be added before any headers potentially specified in the headers option.
+
+headers Record<string,string>
+
+Optional custom headers to include in requests. These will be added to request headers after any headers potentially added by use of the apiKey option.
+
+queryParams Record<string,string>
+
+Optional custom url query parameters to include in request urls.
+
+fetch (input: RequestInfo, init?: RequestInit) => Promise<Response>
+
+Custom fetch implementation. Defaults to the global fetch function. You can use it as a middleware to intercept requests, or to provide a custom fetch implementation for e.g. testing.
+
+includeUsage boolean
+
+Include usage information in streaming responses. When enabled, usage data will be included in the response metadata for streaming requests. Defaults to undefined (false).
+
+Language Models
+You can create provider models using a provider instance. The first argument is the model id, e.g. model-id.
+
+
+const model = provider('model-id');
+Example
+You can use provider language models to generate text with the generateText function:
+
+
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { generateText } from 'ai';
+
+const provider = createOpenAICompatible({
+  name: 'provider-name',
+  apiKey: process.env.PROVIDER_API_KEY,
+  baseURL: 'https://api.provider.com/v1',
+});
+
+const { text } = await generateText({
+  model: provider('model-id'),
+  prompt: 'Write a vegetarian lasagna recipe for 4 people.',
+});
+Including model ids for auto-completion
+
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { generateText } from 'ai';
+
+type ExampleChatModelIds =
+  | 'meta-llama/Llama-3-70b-chat-hf'
+  | 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo'
+  | (string & {});
+
+type ExampleCompletionModelIds =
+  | 'codellama/CodeLlama-34b-Instruct-hf'
+  | 'Qwen/Qwen2.5-Coder-32B-Instruct'
+  | (string & {});
+
+type ExampleEmbeddingModelIds =
+  | 'BAAI/bge-large-en-v1.5'
+  | 'bert-base-uncased'
+  | (string & {});
+
+const model = createOpenAICompatible<
+  ExampleChatModelIds,
+  ExampleCompletionModelIds,
+  ExampleEmbeddingModelIds
+>({
+  name: 'example',
+  apiKey: process.env.PROVIDER_API_KEY,
+  baseURL: 'https://api.example.com/v1',
+});
+
+// Subsequent calls to e.g. `model.chatModel` will auto-complete the model id
+// from the list of `ExampleChatModelIds` while still allowing free-form
+// strings as well.
+
+const { text } = await generateText({
+  model: model.chatModel('meta-llama/Llama-3-70b-chat-hf'),
+  prompt: 'Write a vegetarian lasagna recipe for 4 people.',
+});
+Custom query parameters
+Some providers may require custom query parameters. An example is the Azure AI Model Inference API which requires an api-version query parameter.
+
+You can set these via the optional queryParams provider setting. These will be added to all requests made by the provider.
+
+
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+
+const provider = createOpenAICompatible({
+  name: 'provider-name',
+  apiKey: process.env.PROVIDER_API_KEY,
+  baseURL: 'https://api.provider.com/v1',
+  queryParams: {
+    'api-version': '1.0.0',
+  },
+});
+For example, with the above configuration, API requests would include the query parameter in the URL like: https://api.provider.com/v1/chat/completions?api-version=1.0.0.
+
+Provider-specific options
+The OpenAI Compatible provider supports adding provider-specific options to the request body. These are specified with the providerOptions field in the request body.
+
+For example, if you create a provider instance with the name provider-name, you can add a custom-option field to the request body like this:
+
+
+const provider = createOpenAICompatible({
+  name: 'provider-name',
+  apiKey: process.env.PROVIDER_API_KEY,
+  baseURL: 'https://api.provider.com/v1',
+});
+
+const { text } = await generateText({
+  model: provider('model-id'),
+  prompt: 'Hello',
+  providerOptions: {
+    'provider-name': { customOption: 'magic-value' },
+  },
+});
+The request body sent to the provider will include the customOption field with the value magic-value. This gives you an easy way to add provider-specific options to requests without having to modify the provider or AI SDK code.
+
+Custom Metadata Extraction
+The OpenAI Compatible provider supports extracting provider-specific metadata from API responses through metadata extractors. These extractors allow you to capture additional information returned by the provider beyond the standard response format.
+
+Metadata extractors receive the raw, unprocessed response data from the provider, giving you complete flexibility to extract any custom fields or experimental features that the provider may include. This is particularly useful when:
+
+Working with providers that include non-standard response fields
+Experimenting with beta or preview features
+Capturing provider-specific metrics or debugging information
+Supporting rapid provider API evolution without SDK changes
+Metadata extractors work with both streaming and non-streaming chat completions and consist of two main components:
+
+A function to extract metadata from complete responses
+A streaming extractor that can accumulate metadata across chunks in a streaming response
+Here's an example metadata extractor that captures both standard and custom provider data:
+
+
+const myMetadataExtractor: MetadataExtractor = {
+  // Process complete, non-streaming responses
+  extractMetadata: ({ parsedBody }) => {
+    // You have access to the complete raw response
+    // Extract any fields the provider includes
+    return {
+      myProvider: {
+        standardUsage: parsedBody.usage,
+        experimentalFeatures: parsedBody.beta_features,
+        customMetrics: {
+          processingTime: parsedBody.server_timing?.total_ms,
+          modelVersion: parsedBody.model_version,
+          // ... any other provider-specific data
+        },
+      },
+    };
+  },
+
+  // Process streaming responses
+  createStreamExtractor: () => {
+    let accumulatedData = {
+      timing: [],
+      customFields: {},
+    };
+
+    return {
+      // Process each chunk's raw data
+      processChunk: parsedChunk => {
+        if (parsedChunk.server_timing) {
+          accumulatedData.timing.push(parsedChunk.server_timing);
+        }
+        if (parsedChunk.custom_data) {
+          Object.assign(accumulatedData.customFields, parsedChunk.custom_data);
+        }
+      },
+      // Build final metadata from accumulated data
+      buildMetadata: () => ({
+        myProvider: {
+          streamTiming: accumulatedData.timing,
+          customData: accumulatedData.customFields,
+        },
+      }),
+    };
+  },
+};
+You can provide a metadata extractor when creating your provider instance:
+
+
+const provider = createOpenAICompatible({
+  name: 'my-provider',
+  apiKey: process.env.PROVIDER_API_KEY,
+  baseURL: 'https://api.provider.com/v1',
+  metadataExtractor: myMetadataExtractor,
+});
+The extracted metadata will be included in the response under the providerMetadata field:
+
+
+const { text, providerMetadata } = await generateText({
+  model: provider('model-id'),
+  prompt: 'Hello',
+});
+
+console.log(providerMetadata.myProvider.customMetric);
+This allows you to access provider-specific information while maintaining a consistent interface across different providers.
+
+Previous
+ElevenLabs
+Next
+Writing a Custom Provider
+On this page
+OpenAI Compatible Providers
+Setup
+Provider Instance
+Language Models
+Example
+Including model ids for auto-completion
+Custom query parameters
+Provider-specific options
+Custom Metadata Extraction
+Elevate your AI applications with Vercel.
+Trusted by OpenAI, Replicate, Suno, Pinecone, and more.
+Vercel provides tools and infrastructure to deploy AI apps and features at scale.
+Resources
+Docs
+Cookbook
+Providers
+Showcase
+GitHub
+Discussions
+More
+Playground
+Contact Sales
+About Vercel
+Next.js + Vercel
+Open Source Software
+GitHub
+X
+Legal
+Privacy Policy
+© 2025 Vercel, Inc.
+
+
+
+
+
