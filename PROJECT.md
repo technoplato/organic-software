@@ -1,221 +1,126 @@
-# Organic Software
+# Organic Software Project Status
 
-A real-time, cross-platform application for communicating with Claude Code via TypeScript and synchronizing conversations across devices using InstantDB.
+**Last Updated:** August 30th, 8:41 PM
 
-## Overview
+## 🚀 Current Status
 
-This project enables seamless interaction with Claude Code from multiple clients while maintaining synchronized conversation history through real-time database synchronization. The architecture consists of a host TypeScript application and a mobile Expo client, both connected through InstantDB for instant data synchronization.
+An experimental project exploring AI-driven development workflows with real-time communication between mobile apps and development environments via InstantDB. The system features a supervisor-managed architecture with automatic error recovery and structured AI interactions.
 
-## Architecture
+## ✅ Recently Added Features
 
-### Host Application (TypeScript + Bun)
-- **Runtime**: Bun - Fast JavaScript runtime with native TypeScript support
-- **Purpose**: Primary interface for Claude Code communication
-- **Location**: Root directory (`index.ts`)
-- **Responsibilities**:
-  - Direct integration with Claude Code SDK
-  - Conversation management and processing
-  - Real-time sync with InstantDB
-  - Authentication and session management
+### AI SDK Integration (Latest)
+- **Vercel AI SDK** integration with LiteLLM proxy for Claude 3.7 Sonnet
+- **Custom LiteLLM provider** (`lib/litellm-provider.ts`) for OpenAI-compatible endpoints
+- **Comprehensive documentation** in `docs/ai-sdk/` covering providers, structured data, and custom implementations
+- **Structured output testing** with multiple test files exploring different approaches
 
-### Mobile Client (Expo + React Native)
-- **Framework**: Expo with TypeScript template
-- **Purpose**: Mobile interface for monitoring and interacting with Claude Code sessions
-- **Location**: `mobile-app/` directory
-- **Features**:
-  - Real-time conversation viewing
-  - Remote command execution
-  - Notification system for new responses
-  - Cross-platform compatibility (iOS/Android/Web)
+### Mobile App Enhancements
+- **Voice input functionality** working in foreground mode
+- **Dark mode support** fully implemented
+- **Push notifications** with working token-based delivery
+- **InstantDB ID integration** - fixed conversation screen to use real InstantDB IDs instead of generated ones
+- **Zod validation** and AI SDK dependencies added to mobile app
 
-### Database Layer (InstantDB)
-- **Technology**: InstantDB - Modern Firebase alternative
-- **Purpose**: Real-time data synchronization between host and clients
-- **Features**:
-  - Instant real-time updates
-  - Offline support with automatic sync
-  - Built-in authentication
-  - Collaborative data management
+### Infrastructure
+- **Supervisor system** (`supervisor.ts`) with process monitoring and auto-restart
+- **Message handler** (`instant-message-handler.ts`) with heartbeat system
+- **Test suite** for heartbeats, issues, and InstantDB operations
 
-## Technology Stack
+## 🟢 What's Working
 
-| Component | Technology | Version | Purpose |
-|-----------|------------|---------|---------|
-| Runtime | Bun | 1.2.20+ | Fast JavaScript/TypeScript execution |
-| Mobile Framework | Expo | 53.0+ | Cross-platform mobile development |
-| Database | InstantDB | Latest | Real-time data synchronization |
-| AI SDK | Claude Code SDK | Latest | Claude AI integration |
-| Language | TypeScript | 5.8+ | Type-safe development |
-| Authentication | InstantDB Auth | - | User management and security |
+- ✅ **Voice input** (foreground only)
+- ✅ **Dark mode** UI
+- ✅ **Push notifications** delivery
+- ✅ **InstantDB** real-time sync
+- ✅ **Supervisor** process management
+- ✅ **AI SDK** basic text generation
+- ✅ **Mobile app** core functionality
+- ✅ **Issue tracking** via InstantDB
 
-## Project Structure
+## 🔴 Known Issues
 
-```
-remote-organic-software/
-├── setup-dependencies.sh          # Dependency installation script
-├── package.json                   # Bun project configuration
-├── index.ts                       # Host application entry point
-├── tsconfig.json                  # TypeScript configuration
-├── PROJECT.md                     # This documentation
-├── CLAUDE.md                      # Claude Code specific configuration
-└── mobile-app/                    # Expo mobile application
-    ├── App.tsx                    # Main mobile app component
-    ├── package.json               # Mobile app dependencies
-    ├── tsconfig.json              # Mobile TypeScript config
-    └── assets/                    # Mobile app assets
+- ❌ **Background voice recording** not working yet
+- ❌ **Structured outputs** with AI SDK - schema validation failing
+- ❌ **Tool calling** with LiteLLM/Bedrock - JSON schema incompatibility
+- ❌ **Zod v4** compatibility issues with AI SDK provider utils
+
+## 🧪 Test Results
+
+### Structured Output Tests
+```bash
+# Working tests
+npx tsx test-structured-clean.ts     # ✅ Basic JSON extraction
+npx tsx test-ai-sdk.ts              # ✅ Simple text generation
+
+# Failing tests  
+npx tsx test-structured-output.ts    # ❌ Zod schema validation
+npx tsx test-structured-simple.ts    # ❌ Tool calling with Bedrock
 ```
 
-## Key Features
-
-### Real-Time Synchronization
-- Instant conversation updates across all connected devices
-- Automatic conflict resolution and data consistency
-- Offline-first architecture with sync on reconnection
-
-### Cross-Platform Support
-- Native mobile apps (iOS/Android) via Expo
-- Web interface through Expo web
-- Desktop host application via Bun
-
-### Claude Code Integration
-- Direct SDK integration for AI interactions
-- Session management and conversation history
-- Error handling and retry mechanisms
-- Streaming response support
-
-### Security & Authentication
-- Secure authentication via InstantDB
-- User-based conversation isolation
-- API key management and rotation
-- End-to-end encryption for sensitive data
-
-## Development Workflow
-
-### Prerequisites
-- Node.js (v18+)
-- Bun runtime
-- Expo CLI
-- InstantDB account
-- Claude API key
-
-### Setup Instructions
-
-1. **Install Dependencies**
-   ```bash
-   ./setup-dependencies.sh
-   ```
-
-2. **Configure Environment**
-   ```bash
-   # Set up Claude API key
-   export ANTHROPIC_API_KEY="your-api-key"
-   
-   # Configure InstantDB
-   export INSTANTDB_APP_ID="your-app-id"
-   ```
-
-3. **Start Host Application**
-   ```bash
-   bun run index.ts
-   ```
-
-4. **Start Mobile Development**
-   ```bash
-   cd mobile-app
-   bun run start
-   ```
-
-### Development Commands
-
-| Command | Purpose |
-|---------|---------|
-| `bun run index.ts` | Start host application |
-| `bun run dev` | Development mode with hot reload |
-| `cd mobile-app && bun run start` | Start Expo development server |
-| `cd mobile-app && bun run ios` | Launch iOS simulator |
-| `cd mobile-app && bun run android` | Launch Android emulator |
-| `cd mobile-app && bun run web` | Launch web development |
-
-## Integration Points
-
-### Claude Code SDK
-- Programmatic access to Claude AI capabilities
-- Session management and conversation threading
-- Tool integration and custom function calling
-- Response streaming and error handling
-
-### InstantDB Schema
-```typescript
-// Conversation schema
-interface Conversation {
-  id: string;
-  userId: string;
-  title: string;
-  messages: Message[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// Message schema
-interface Message {
-  id: string;
-  conversationId: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: Date;
-  metadata?: Record<string, any>;
-}
+### Push Notifications
+```bash
+npx tsx send-push-to-token.ts        # ✅ Working delivery
 ```
 
-### Real-Time Events
-- `conversation:created` - New conversation started
-- `message:sent` - User message sent to Claude
-- `message:received` - Claude response received
-- `session:connected` - Client connected to sync
-- `session:disconnected` - Client disconnected
+### InstantDB Operations
+```bash
+npx tsx tests/test-heartbeats.ts     # ✅ Heartbeat system
+npx tsx tests/test-issues.ts         # ✅ Issue CRUD operations
+```
 
-## Deployment Strategy
+## 🛠️ Development Commands
 
-### Host Application
-- Containerized deployment with Docker
-- Environment variable management
-- Health checks and monitoring
-- Auto-scaling based on usage
+### Mobile App
+```bash
+cd mobile-app
+npm run ios                          # Start iOS development build
+npm run start                       # Start Expo bundler
+```
 
-### Mobile Application
-- EAS Build for production apps
-- App Store / Play Store distribution
-- Over-the-air updates via Expo
-- Analytics and crash reporting
+### Backend Services
+```bash
+npx tsx supervisor.ts                # Start supervisor system
+npx tsx instant-message-handler.ts   # Start message handler directly
+```
 
-### Database
-- InstantDB cloud hosting
-- Automatic backups and recovery
-- Performance monitoring
-- Usage analytics
+### Testing
+```bash
+npx tsx test-*.ts                    # Run various test suites
+npx tsx tests/test-*.ts              # Run InstantDB tests
+```
 
-## Security Considerations
+## 📋 Next Steps
 
-- API keys stored in secure environment variables
-- User authentication required for all operations
-- Conversation data encrypted at rest
-- Rate limiting to prevent abuse
-- Audit logging for security events
+### High Priority
+1. **Fix structured outputs** - resolve Zod v4 compatibility with AI SDK
+2. **Background voice recording** - implement iOS background audio permissions
+3. **Tool calling** - fix JSON schema format for LiteLLM/Bedrock compatibility
 
-## Future Enhancements
+### Medium Priority
+1. **UI improvements** for voice input interface
+2. **Error handling** improvements in mobile app
+3. **Session persistence** and transition tracking
 
-- Voice input/output integration
-- File sharing and document processing
-- Multi-user collaboration features
-- Advanced search and filtering
-- Custom plugin system
-- Analytics dashboard
-- Notification system improvements
+### Low Priority
+1. **Android support** (currently iOS-only per project rules)
+2. **Additional AI providers** beyond Claude
+3. **Enhanced logging** and debugging tools
 
-## Contributing
+## 🏗️ Architecture
 
-This project follows TypeScript best practices and uses Bun for optimal performance. All changes should maintain type safety and include appropriate error handling.
+- **Mobile App**: Expo/React Native with InstantDB sync
+- **Backend**: Node.js with supervisor pattern
+- **AI Integration**: Vercel AI SDK + LiteLLM proxy
+- **Database**: InstantDB for real-time sync
+- **Notifications**: Expo push notifications
+
+## 📚 Key Documentation
+
+- [`docs/ai-sdk/`](docs/ai-sdk/) - AI SDK integration guides
+- [`docs/supervisor-plan.md`](docs/supervisor-plan.md) - Supervisor architecture
+- [`mobile-app/SPEECH_RECOGNITION_IMPLEMENTATION.md`](mobile-app/SPEECH_RECOGNITION_IMPLEMENTATION.md) - Voice input details
+- [`mobile-app/PUSH_NOTIFICATIONS_SETUP.md`](mobile-app/PUSH_NOTIFICATIONS_SETUP.md) - Push notification setup
 
 ---
 
-*This project demonstrates the power of modern JavaScript tooling combined with AI capabilities to create seamless, real-time applications.*
+*This project follows an experimental approach where intentional broken states are used to test auto-recovery systems. The supervisor and message handlers are designed to handle and resolve issues automatically.*
