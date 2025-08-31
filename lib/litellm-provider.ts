@@ -2,13 +2,11 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 
 // Define available model IDs for auto-completion
 export type LiteLLMChatModelIds =
-  | 'claude-3-sonnet'
   | 'claude-3-7-sonnet'
   | 'claude-sonnet-4-vertex'
   | 'claude-sonnet-4'
   | 'claude-3-5-sonnet'
   | 'claude-opus-4-vertex'
-  | 'claude-3-5-haiku'
   | 'claude-opus-4'
   | 'claude-opus-4-1-vertex'
   | 'claude-3-5-haiku-vertex'
@@ -44,12 +42,13 @@ export function createLiteLLM(options: LiteLLMProviderSettings = {}) {
   
   const apiKey = options.apiKey || process.env.LITELLM_API_KEY;
   
-  return createOpenAICompatible<LiteLLMChatModelIds>({
+  return createOpenAICompatible({
     name: 'litellm',
     baseURL,
     // Only include apiKey if it's provided (your proxy doesn't require auth)
     ...(apiKey ? { apiKey } : {}),
     headers: options.headers,
+    // Let AI SDK auto-detect structured output capabilities
   });
 }
 
