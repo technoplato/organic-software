@@ -13,14 +13,19 @@ async function testRemoteControl() {
   try {
     // Find an existing conversation or create a new one
     const conversationsQuery = await db.query({
-      conversations: {}
+      conversations: {},
     });
 
     let conversationId: string;
-    
-    if (conversationsQuery.conversations && conversationsQuery.conversations.length > 0) {
+
+    if (
+      conversationsQuery.conversations &&
+      conversationsQuery.conversations.length > 0
+    ) {
       conversationId = conversationsQuery.conversations[0].id;
-      console.log(`📋 Using existing conversation: ${conversationsQuery.conversations[0].title}`);
+      console.log(
+        `📋 Using existing conversation: ${conversationsQuery.conversations[0].title}`,
+      );
     } else {
       // Create a new conversation
       conversationId = id();
@@ -39,14 +44,13 @@ async function testRemoteControl() {
       id: id(),
       conversationId,
       role: "user",
-      content: "Hello Claude! This is a test message from the remote control system. Can you tell me what 2+2 equals?",
+      content:
+        "Hello Claude! This is a test message from the remote control system. Can you tell me what 2+2 equals?",
     };
 
     console.log(`📱 Sending test message: "${testMessage.content}"`);
-    
-    await db.transact([
-      db.tx.messages[testMessage.id].update(testMessage),
-    ]);
+
+    await db.transact([db.tx.messages[testMessage.id].update(testMessage)]);
 
     console.log("✅ Test message sent!");
     console.log("\n🔍 Expected workflow:");
@@ -54,12 +58,11 @@ async function testRemoteControl() {
     console.log("   2. Host app sends message to Claude Code");
     console.log("   3. Claude's response appears in the database");
     console.log("   4. Mobile app shows the response in real-time");
-    
+
     console.log("\n💡 To verify:");
     console.log("   - Check host app console for processing logs");
     console.log("   - Check mobile app for new Claude response");
     console.log("   - Or run: bun run check-messages.ts");
-
   } catch (error) {
     console.error("❌ Test failed:", error);
     process.exit(1);

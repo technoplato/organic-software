@@ -33,13 +33,13 @@ async function testSimple() {
     // Test 2: Try a simple transaction
     console.log("\n💾 Testing database transaction...");
     const todoId = id();
-    
+
     await db.transact(
       tx.todos[todoId].update({
         text: "Test todo from simple test",
         done: false,
         createdAt: Date.now(),
-      })
+      }),
     );
 
     console.log("✅ Transaction completed successfully");
@@ -60,7 +60,7 @@ async function testSimple() {
 
     console.log("\n🎉 SIMPLE TEST COMPLETE!");
     console.log("✅ @instantdb/node is properly linked and working");
-    
+
     // Shutdown
     db.shutdown();
     process.exit(0);

@@ -16,7 +16,8 @@ export const RecognitionState = {
   ERROR: "error",
 } as const;
 
-export type RecognitionStateType = typeof RecognitionState[keyof typeof RecognitionState];
+export type RecognitionStateType =
+  (typeof RecognitionState)[keyof typeof RecognitionState];
 
 // Contextual strings from the codebase
 const CONTEXTUAL_STRINGS = [
@@ -63,7 +64,7 @@ export interface SpeechRecognitionHook {
   isRecognizing: boolean;
   error: string | null;
   recordingUri: string | null;
-  
+
   // Methods
   start: () => Promise<void>;
   stop: () => void;
@@ -72,12 +73,14 @@ export interface SpeechRecognitionHook {
 }
 
 export function useSpeechRecognition(): SpeechRecognitionHook {
-  const [state, setState] = useState<RecognitionStateType>(RecognitionState.IDLE);
+  const [state, setState] = useState<RecognitionStateType>(
+    RecognitionState.IDLE,
+  );
   const [transcript, setTranscript] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
-  
+
   const finalTranscriptRef = useRef("");
 
   // Event handlers
@@ -90,30 +93,36 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
     setState(RecognitionState.IDLE);
   });
 
-  useSpeechRecognitionEvent("result", (event: { results: ExpoSpeechRecognitionResult[]; isFinal: boolean }) => {
-    if (event.results.length > 0) {
-      const result = event.results[0];
-      
-      if (event.isFinal) {
-        // Append final result to transcript
-        const newText = result.transcript;
-        finalTranscriptRef.current = finalTranscriptRef.current 
-          ? `${finalTranscriptRef.current} ${newText}` 
-          : newText;
-        setTranscript(finalTranscriptRef.current);
-        setInterimTranscript("");
-      } else {
-        // Update interim transcript
-        setInterimTranscript(result.transcript);
-      }
-    }
-  });
+  useSpeechRecognitionEvent(
+    "result",
+    (event: { results: ExpoSpeechRecognitionResult[]; isFinal: boolean }) => {
+      if (event.results.length > 0) {
+        const result = event.results[0];
 
-  useSpeechRecognitionEvent("error", (event: ExpoSpeechRecognitionErrorEvent) => {
-    setState(RecognitionState.ERROR);
-    setError(`${event.error}: ${event.message}`);
-    console.error("Speech recognition error:", event);
-  });
+        if (event.isFinal) {
+          // Append final result to transcript
+          const newText = result.transcript;
+          finalTranscriptRef.current = finalTranscriptRef.current
+            ? `${finalTranscriptRef.current} ${newText}`
+            : newText;
+          setTranscript(finalTranscriptRef.current);
+          setInterimTranscript("");
+        } else {
+          // Update interim transcript
+          setInterimTranscript(result.transcript);
+        }
+      }
+    },
+  );
+
+  useSpeechRecognitionEvent(
+    "error",
+    (event: ExpoSpeechRecognitionErrorEvent) => {
+      setState(RecognitionState.ERROR);
+      setError(`${event.error}: ${event.message}`);
+      console.error("Speech recognition error:", event);
+    },
+  );
 
   useSpeechRecognitionEvent("audiostart", (event: { uri: string | null }) => {
     if (event.uri) {
@@ -132,18 +141,21 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
   const start = useCallback(async () => {
     try {
       setState(RecognitionState.STARTING);
-      
+
       // Request permissions
-      const result = await ExpoSpeechRecognitionModule.requestMicrophonePermissionsAsync();
+      const result =
+        await ExpoSpeechRecognitionModule.requestMicrophonePermissionsAsync();
       if (!result.granted) {
         throw new Error("Microphone permissions not granted");
       }
-      
+
       // Start recognition
       ExpoSpeechRecognitionModule.start(SPEECH_CONFIG);
     } catch (err) {
       setState(RecognitionState.ERROR);
-      setError(err instanceof Error ? err.message : "Failed to start recognition");
+      setError(
+        err instanceof Error ? err.message : "Failed to start recognition",
+      );
       console.error("Failed to start speech recognition:", err);
     }
   }, []);
@@ -175,7 +187,7 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
     isRecognizing: state === RecognitionState.RECOGNIZING,
     error,
     recordingUri,
-    
+
     // Methods
     start,
     stop,
@@ -187,9 +199,10 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
 // Utility function to check if speech recognition is available
 export async function checkSpeechRecognitionAvailability() {
   const isAvailable = ExpoSpeechRecognitionModule.isRecognitionAvailable();
-  const supportsOnDevice = ExpoSpeechRecognitionModule.supportsOnDeviceRecognition();
+  const supportsOnDevice =
+    ExpoSpeechRecognitionModule.supportsOnDeviceRecognition();
   const supportsRecording = ExpoSpeechRecognitionModule.supportsRecording();
-  
+
   return {
     isAvailable,
     supportsOnDevice,

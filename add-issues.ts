@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 
 import { init, tx, id } from "@instantdb/node";
-import { config } from 'dotenv';
+import { config } from "dotenv";
 
 // Load environment variables
 config();
@@ -30,12 +30,13 @@ interface Issue {
 async function createIssues() {
   // Since we don't have direct access to conversationId and messageId in this context,
   // we'll set them to null and let the user update them if needed
-  
+
   const issues: Issue[] = [
     {
       id: id(),
       title: "Web heartbeat listener not working in supervisor",
-      description: "The web heartbeat is showing as offline when running 'npm run supervisor'. Web clients can't update their heartbeat status properly.",
+      description:
+        "The web heartbeat is showing as offline when running 'npm run supervisor'. Web clients can't update their heartbeat status properly.",
       priority: "High",
       status: "Todo",
       createdAt: Date.now(),
@@ -44,8 +45,9 @@ async function createIssues() {
     {
       id: id(),
       title: "Issues are not editable/mutable in issues screen",
-      description: "Users cannot modify existing issues in the issues screen. Need to add edit functionality to allow updating title, description, priority, and status.",
-      priority: "Medium", 
+      description:
+        "Users cannot modify existing issues in the issues screen. Need to add edit functionality to allow updating title, description, priority, and status.",
+      priority: "Medium",
       status: "Todo",
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -53,19 +55,18 @@ async function createIssues() {
     {
       id: id(),
       title: "Text input should be expandable on web platform",
-      description: "The message input text box should expand/resize automatically for longer messages on web browsers for better UX.",
+      description:
+        "The message input text box should expand/resize automatically for longer messages on web browsers for better UX.",
       priority: "Low",
-      status: "Todo", 
+      status: "Todo",
       createdAt: Date.now(),
       updatedAt: Date.now(),
-    }
+    },
   ];
 
   try {
     for (const issue of issues) {
-      await db.transact([
-        tx.issues[issue.id].update(issue)
-      ]);
+      await db.transact([tx.issues[issue.id].update(issue)]);
       console.log(`✅ Created issue: ${issue.title}`);
     }
     console.log(`\n🎉 Successfully created ${issues.length} issues!`);

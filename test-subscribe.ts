@@ -28,13 +28,13 @@ async function testSubscribe() {
     // Test 2: Try a simple transaction
     console.log("\n💾 Testing database transaction...");
     const todoId = id();
-    
+
     await db.transact(
       tx.todos[todoId].update({
         text: "Test todo from subscribe test",
         done: false,
         createdAt: Date.now(),
-      })
+      }),
     );
 
     console.log("✅ Transaction completed successfully");
@@ -42,9 +42,9 @@ async function testSubscribe() {
 
     // Test 3: Try subscription instead of queryOnce
     console.log("\n📊 Testing database subscription...");
-    
+
     let subscriptionWorked = false;
-    
+
     const unsubscribe = db.subscribeQuery(
       { todos: { $: { limit: 1 } } },
       (resp) => {
@@ -58,11 +58,11 @@ async function testSubscribe() {
             console.log(`   First todo: ${resp.data.todos[0].text}`);
           }
         }
-      }
+      },
     );
 
     // Wait for subscription to receive data
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
     if (subscriptionWorked) {
       console.log("\n🎉 SUBSCRIBE TEST COMPLETE!");
@@ -70,12 +70,12 @@ async function testSubscribe() {
     } else {
       console.log("\n⚠️ Subscription didn't receive data within 3 seconds");
     }
-    
+
     // Clean up
     if (typeof unsubscribe === "function") {
       unsubscribe();
     }
-    
+
     // Shutdown
     db.shutdown();
     process.exit(subscriptionWorked ? 0 : 1);

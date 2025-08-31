@@ -9,7 +9,11 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useSpeechRecognition, RecognitionState, checkSpeechRecognitionAvailability } from "../lib/speech-recognition";
+import {
+  useSpeechRecognition,
+  RecognitionState,
+  checkSpeechRecognitionAvailability,
+} from "../lib/speech-recognition";
 import useStyles from "../lib/useStyles";
 
 export default function SpeechScreen() {
@@ -43,7 +47,7 @@ export default function SpeechScreen() {
     if (!capabilities?.isAvailable) {
       Alert.alert(
         "Speech Recognition Unavailable",
-        "Speech recognition is not available on this device. Please enable Siri & Dictation in Settings."
+        "Speech recognition is not available on this device. Please enable Siri & Dictation in Settings.",
       );
       return;
     }
@@ -88,8 +92,8 @@ export default function SpeechScreen() {
     if (transcript) {
       // Navigate to conversations with the transcript
       router.push({
-        pathname: '/conversations',
-        params: { prefillText: transcript }
+        pathname: "/conversations",
+        params: { prefillText: transcript },
       });
     }
   };
@@ -101,10 +105,13 @@ export default function SpeechScreen() {
         <View style={[styles.alignCenter, styles.marginBottom]}>
           <Text style={styles.title}>🎙️ Speech Recognition</Text>
           <Text style={styles.subtitle}>Voice input and transcription</Text>
-          
+
           {/* Navigation to Enhanced Demo */}
           <TouchableOpacity
-            style={[styles.button, { backgroundColor: "#8B5CF6", marginTop: 15 }]}
+            style={[
+              styles.button,
+              { backgroundColor: "#8B5CF6", marginTop: 15 },
+            ]}
             onPress={() => router.push("/speech-demo")}
           >
             <Text style={styles.buttonText}>✨ Try Enhanced Demo</Text>
@@ -115,9 +122,23 @@ export default function SpeechScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionSubtitle}>Device Capabilities</Text>
           {capabilities ? (
-            <View style={[styles.card, styles.flexRow, { justifyContent: 'space-around' }]}>
+            <View
+              style={[
+                styles.card,
+                styles.flexRow,
+                { justifyContent: "space-around" },
+              ]}
+            >
               <View style={styles.alignCenter}>
-                <Text style={[{ fontSize: 12, color: palette.textSecondary, marginBottom: 5 }]}>
+                <Text
+                  style={[
+                    {
+                      fontSize: 12,
+                      color: palette.textSecondary,
+                      marginBottom: 5,
+                    },
+                  ]}
+                >
                   Available
                 </Text>
                 <Text style={{ fontSize: 24 }}>
@@ -125,7 +146,15 @@ export default function SpeechScreen() {
                 </Text>
               </View>
               <View style={styles.alignCenter}>
-                <Text style={[{ fontSize: 12, color: palette.textSecondary, marginBottom: 5 }]}>
+                <Text
+                  style={[
+                    {
+                      fontSize: 12,
+                      color: palette.textSecondary,
+                      marginBottom: 5,
+                    },
+                  ]}
+                >
                   On-Device
                 </Text>
                 <Text style={{ fontSize: 24 }}>
@@ -133,7 +162,15 @@ export default function SpeechScreen() {
                 </Text>
               </View>
               <View style={styles.alignCenter}>
-                <Text style={[{ fontSize: 12, color: palette.textSecondary, marginBottom: 5 }]}>
+                <Text
+                  style={[
+                    {
+                      fontSize: 12,
+                      color: palette.textSecondary,
+                      marginBottom: 5,
+                    },
+                  ]}
+                >
                   Recording
                 </Text>
                 <Text style={{ fontSize: 24 }}>
@@ -159,7 +196,16 @@ export default function SpeechScreen() {
             </Text>
             {isRecognizing && (
               <View style={{ marginLeft: 12 }}>
-                <View style={[{ width: 12, height: 12, borderRadius: 6, backgroundColor: getStateColor() }]} />
+                <View
+                  style={[
+                    {
+                      width: 12,
+                      height: 12,
+                      borderRadius: 6,
+                      backgroundColor: getStateColor(),
+                    },
+                  ]}
+                />
               </View>
             )}
           </View>
@@ -181,7 +227,7 @@ export default function SpeechScreen() {
             >
               <Text style={styles.buttonText}>🎙️ Start</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[
                 styles.button,
@@ -194,7 +240,7 @@ export default function SpeechScreen() {
             >
               <Text style={styles.buttonText}>⏸️ Stop</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[
                 styles.button,
@@ -207,7 +253,7 @@ export default function SpeechScreen() {
             >
               <Text style={styles.buttonText}>🛑 Abort</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[
                 styles.button,
@@ -227,7 +273,9 @@ export default function SpeechScreen() {
             <Text style={styles.sectionSubtitle}>Error</Text>
             <View style={styles.errorCard}>
               <Text style={styles.errorIcon}>⚠️</Text>
-              <Text style={[{ color: palette.error, fontSize: 14, flex: 1 }]}>{error}</Text>
+              <Text style={[{ color: palette.error, fontSize: 14, flex: 1 }]}>
+                {error}
+              </Text>
             </View>
           </View>
         )}
@@ -240,7 +288,17 @@ export default function SpeechScreen() {
               <>
                 {transcript && (
                   <View style={{ marginBottom: 12 }}>
-                    <Text style={[{ fontSize: 12, color: palette.textSecondary, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase' }]}>
+                    <Text
+                      style={[
+                        {
+                          fontSize: 12,
+                          color: palette.textSecondary,
+                          fontWeight: "600",
+                          marginBottom: 4,
+                          textTransform: "uppercase",
+                        },
+                      ]}
+                    >
                       Final:
                     </Text>
                     <Text style={styles.messageContent}>{transcript}</Text>
@@ -248,27 +306,63 @@ export default function SpeechScreen() {
                 )}
                 {interimTranscript && (
                   <View style={{ marginBottom: 12 }}>
-                    <Text style={[{ fontSize: 12, color: palette.warning, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase' }]}>
+                    <Text
+                      style={[
+                        {
+                          fontSize: 12,
+                          color: palette.warning,
+                          fontWeight: "600",
+                          marginBottom: 4,
+                          textTransform: "uppercase",
+                        },
+                      ]}
+                    >
                       Live:
                     </Text>
-                    <Text style={[{ fontSize: 16, color: palette.textSecondary, fontStyle: 'italic', lineHeight: 24 }]}>
+                    <Text
+                      style={[
+                        {
+                          fontSize: 16,
+                          color: palette.textSecondary,
+                          fontStyle: "italic",
+                          lineHeight: 24,
+                        },
+                      ]}
+                    >
                       {interimTranscript}
                     </Text>
                   </View>
                 )}
               </>
             ) : (
-              <View style={[styles.alignCenter, styles.justifyCenter, { minHeight: 100 }]}>
+              <View
+                style={[
+                  styles.alignCenter,
+                  styles.justifyCenter,
+                  { minHeight: 100 },
+                ]}
+              >
                 <Text style={{ fontSize: 32, marginBottom: 12 }}>
                   {isRecognizing ? "🎙️" : "💭"}
                 </Text>
-                <Text style={[{ fontSize: 16, color: palette.textTertiary, fontStyle: 'italic', textAlign: 'center' }]}>
-                  {isRecognizing ? "Listening..." : "Press Start to begin transcription"}
+                <Text
+                  style={[
+                    {
+                      fontSize: 16,
+                      color: palette.textTertiary,
+                      fontStyle: "italic",
+                      textAlign: "center",
+                    },
+                  ]}
+                >
+                  {isRecognizing
+                    ? "Listening..."
+                    : "Press Start to begin transcription"}
                 </Text>
               </View>
             )}
           </View>
-          
+
           {/* Transcript Actions */}
           {transcript && (
             <View style={[styles.flexRow, { gap: 12, marginTop: 12 }]}>
@@ -278,7 +372,7 @@ export default function SpeechScreen() {
               >
                 <Text style={styles.buttonText}>💬 Send to Chat</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.button, styles.buttonSuccess, styles.flex1]}
                 onPress={() => {
@@ -295,13 +389,42 @@ export default function SpeechScreen() {
         {recordingUri && (
           <View style={styles.section}>
             <Text style={styles.sectionSubtitle}>Recording Saved</Text>
-            <View style={[styles.card, { backgroundColor: palette.isDark ? '#1F2937' : '#F0FDF4', borderColor: palette.success, borderWidth: 1, flexDirection: 'row', alignItems: 'flex-start' }]}>
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: palette.isDark ? "#1F2937" : "#F0FDF4",
+                  borderColor: palette.success,
+                  borderWidth: 1,
+                  flexDirection: "row",
+                  alignItems: "flex-start",
+                },
+              ]}
+            >
               <Text style={{ fontSize: 24, marginRight: 12 }}>📁</Text>
               <View style={styles.flex1}>
-                <Text style={[{ fontSize: 16, color: palette.success, fontWeight: '600', marginBottom: 8 }]}>
+                <Text
+                  style={[
+                    {
+                      fontSize: 16,
+                      color: palette.success,
+                      fontWeight: "600",
+                      marginBottom: 8,
+                    },
+                  ]}
+                >
                   Audio file saved
                 </Text>
-                <Text style={[{ fontSize: 12, color: palette.success, fontFamily: 'monospace' }]} numberOfLines={2}>
+                <Text
+                  style={[
+                    {
+                      fontSize: 12,
+                      color: palette.success,
+                      fontFamily: "monospace",
+                    },
+                  ]}
+                  numberOfLines={2}
+                >
                   {recordingUri}
                 </Text>
               </View>
@@ -321,9 +444,23 @@ export default function SpeechScreen() {
               { icon: "📝", label: "Dictation Mode" },
               { icon: "🎧", label: "Background Audio" },
             ].map((feature, index) => (
-              <View key={index} style={[styles.card, styles.flexRow, styles.alignCenter, styles.gridItemHalf]}>
-                <Text style={{ fontSize: 20, marginRight: 8 }}>{feature.icon}</Text>
-                <Text style={[{ fontSize: 13, color: palette.textPrimary, flex: 1 }]}>
+              <View
+                key={index}
+                style={[
+                  styles.card,
+                  styles.flexRow,
+                  styles.alignCenter,
+                  styles.gridItemHalf,
+                ]}
+              >
+                <Text style={{ fontSize: 20, marginRight: 8 }}>
+                  {feature.icon}
+                </Text>
+                <Text
+                  style={[
+                    { fontSize: 13, color: palette.textPrimary, flex: 1 },
+                  ]}
+                >
                   {feature.label}
                 </Text>
               </View>

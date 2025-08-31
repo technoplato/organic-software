@@ -29,7 +29,9 @@ Notifications.setNotificationHandler({
 
 // InstantDB configuration
 const db = init({
-  appId: process.env.EXPO_PUBLIC_INSTANTDB_APP_ID || "54d69382-c27c-4e54-b2ac-c3dcaef2f0ad",
+  appId:
+    process.env.EXPO_PUBLIC_INSTANTDB_APP_ID ||
+    "54d69382-c27c-4e54-b2ac-c3dcaef2f0ad",
 });
 
 // Define types
@@ -53,59 +55,77 @@ interface Message {
   metadata?: Record<string, any>;
 }
 
-type ConversationState = "idle" | "sending" | "waiting_for_claude" | "claude_responding" | "error";
+type ConversationState =
+  | "idle"
+  | "sending"
+  | "waiting_for_claude"
+  | "claude_responding"
+  | "error";
 
 // Push notification registration helper
 async function registerForPushNotificationsAsync(): Promise<string | null> {
-  if (Platform.OS === 'web') {
+  if (Platform.OS === "web") {
     return null;
   }
 
   try {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    const { status: existingStatus } =
+      await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
-    
-    if (existingStatus !== 'granted') {
+
+    if (existingStatus !== "granted") {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
-    
-    if (finalStatus !== 'granted') {
-      console.warn('Push notification permission not granted');
+
+    if (finalStatus !== "granted") {
+      console.warn("Push notification permission not granted");
       return null;
     }
-    
-    const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
-    
+
+    const projectId =
+      Constants?.expoConfig?.extra?.eas?.projectId ??
+      Constants?.easConfig?.projectId;
+
     if (!projectId) {
-      console.warn('No project ID found. Using a fallback project ID for testing.');
+      console.warn(
+        "No project ID found. Using a fallback project ID for testing.",
+      );
     }
-    
+
     const tokenOptions: Notifications.ExpoPushTokenOptions = {
-      development: Platform.OS === 'ios',
-      ...(projectId && { projectId })
+      development: Platform.OS === "ios",
+      ...(projectId && { projectId }),
     };
-    
-    const token = (await Notifications.getExpoPushTokenAsync(tokenOptions)).data;
-    console.log('📱 Push token obtained:', token);
+
+    const token = (await Notifications.getExpoPushTokenAsync(tokenOptions))
+      .data;
+    console.log("📱 Push token obtained:", token);
     return token;
   } catch (error: any) {
     // Check for specific entitlement error
-    if (error?.message?.includes('aps-environment')) {
-      console.warn('⚠️ Push notifications require a development build with proper entitlements.');
-      console.warn('📖 See mobile-app/PUSH_NOTIFICATIONS_SETUP.md for instructions.');
-      console.warn('🔧 Run: eas build --profile development --platform ios');
-      
+    if (error?.message?.includes("aps-environment")) {
+      console.warn(
+        "⚠️ Push notifications require a development build with proper entitlements.",
+      );
+      console.warn(
+        "📖 See mobile-app/PUSH_NOTIFICATIONS_SETUP.md for instructions.",
+      );
+      console.warn("🔧 Run: eas build --profile development --platform ios");
+
       // Still return the token if we got one (for testing purposes)
-      if (error?.message?.includes('ExponentPushToken')) {
+      if (error?.message?.includes("ExponentPushToken")) {
         const tokenMatch = error.message.match(/ExponentPushToken\[[^\]]+\]/);
         if (tokenMatch) {
-          console.log('📱 Token obtained despite entitlement error:', tokenMatch[0]);
+          console.log(
+            "📱 Token obtained despite entitlement error:",
+            tokenMatch[0],
+          );
           return tokenMatch[0];
         }
       }
     }
-    console.error('Error registering for push notifications:', error);
+    console.error("Error registering for push notifications:", error);
     return null;
   }
 }
@@ -114,8 +134,9 @@ export default function ConversationsScreen() {
   const router = useRouter();
   const { styles, palette } = useStyles();
   const { prefillText } = useLocalSearchParams();
-  const [inputText, setInputText] = useState('');
-  const [conversationState, setConversationState] = useState<ConversationState>("idle");
+  const [inputText, setInputText] = useState("");
+  const [conversationState, setConversationState] =
+    useState<ConversationState>("idle");
   const [pushToken, setPushToken] = useState<string | null>(null);
 
   // InstantDB queries
@@ -136,11 +157,11 @@ export default function ConversationsScreen() {
   const messagesArray = messages?.messages || [];
 
   useEffect(() => {
-    console.log('🔔 Starting push notification registration...');
+    console.log("🔔 Starting push notification registration...");
     registerForPushNotificationsAsync().then(async (token) => {
       setPushToken(token);
-      console.log('🔔 Finished push notification registration. Token:', token);
-      
+      console.log("🔔 Finished push notification registration. Token:", token);
+
       if (token) {
         try {
           // Save push token to database
@@ -154,30 +175,30 @@ export default function ConversationsScreen() {
               createdAt: Date.now(),
             }),
           ]);
-          console.log('✅ Push token saved to database:', token);
+          console.log("✅ Push token saved to database:", token);
         } catch (error) {
-          console.error('❌ Failed to save push token to database:', error);
+          console.error("❌ Failed to save push token to database:", error);
         }
       }
     });
-    
+
     // Handle prefilled text from speech recognition
-    console.log('📝 prefillText value:', prefillText);
-    if (prefillText && typeof prefillText === 'string') {
+    console.log("📝 prefillText value:", prefillText);
+    if (prefillText && typeof prefillText === "string") {
       setInputText(prefillText);
     }
   }, [prefillText]);
 
   const sendMessage = async () => {
     if (!inputText.trim()) return;
-    
+
     setConversationState("sending");
-    
+
     try {
       // Create a new message in InstantDB
       const messageId = id();
       const conversationId = id();
-      
+
       await db.transact([
         db.tx.messages[messageId].update({
           conversationId,
@@ -187,16 +208,15 @@ export default function ConversationsScreen() {
           status: "pending",
         }),
       ]);
-      
-      setInputText('');
+
+      setInputText("");
       setConversationState("waiting_for_claude");
-      
+
       // The host application will pick up this message and respond
-      
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error("Error sending message:", error);
       setConversationState("error");
-      Alert.alert('Error', 'Failed to send message');
+      Alert.alert("Error", "Failed to send message");
     }
   };
 
@@ -214,16 +234,27 @@ export default function ConversationsScreen() {
           <Text style={styles.sectionSubtitle}>Host Status</Text>
           <View style={styles.card}>
             <View style={styles.statusIndicator}>
-              <View style={[
-                styles.statusDot,
-                { backgroundColor: heartbeatsArray.length > 0 ? palette.success : palette.error }
-              ]} />
+              <View
+                style={[
+                  styles.statusDot,
+                  {
+                    backgroundColor:
+                      heartbeatsArray.length > 0
+                        ? palette.success
+                        : palette.error,
+                  },
+                ]}
+              />
               <Text style={styles.statusText}>
-                {heartbeatsArray.length > 0 ? 'Host Online' : 'Host Offline'}
+                {heartbeatsArray.length > 0 ? "Host Online" : "Host Offline"}
               </Text>
             </View>
             {pushToken && (
-              <Text style={[{ fontSize: 12, color: palette.success, marginBottom: 4 }]}>
+              <Text
+                style={[
+                  { fontSize: 12, color: palette.success, marginBottom: 4 },
+                ]}
+              >
                 📱 Push notifications ready
               </Text>
             )}
@@ -241,14 +272,14 @@ export default function ConversationsScreen() {
           <View style={[styles.flexRow, { gap: 12 }]}>
             <TouchableOpacity
               style={[styles.button, styles.buttonPrimary, styles.flex1]}
-              onPress={() => router.push('/speech')}
+              onPress={() => router.push("/speech")}
             >
               <Text style={styles.buttonText}>🎙️ Voice Input</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[styles.button, styles.buttonSuccess, styles.flex1]}
-              onPress={() => setInputText('Hello Claude! How are you today?')}
+              onPress={() => setInputText("Hello Claude! How are you today?")}
             >
               <Text style={styles.buttonText}>👋 Quick Hello</Text>
             </TouchableOpacity>
@@ -258,9 +289,13 @@ export default function ConversationsScreen() {
         {/* Message Input */}
         <View style={styles.section}>
           <Text style={styles.sectionSubtitle}>Send Message</Text>
-          <View style={[styles.flexRow, { alignItems: 'flex-end', gap: 12 }]}>
+          <View style={[styles.flexRow, { alignItems: "flex-end", gap: 12 }]}>
             <TextInput
-              style={[styles.textInput, styles.flex1, { minHeight: 80, maxHeight: 120, textAlignVertical: 'top' }]}
+              style={[
+                styles.textInput,
+                styles.flex1,
+                { minHeight: 80, maxHeight: 120, textAlignVertical: "top" },
+              ]}
               value={inputText}
               onChangeText={setInputText}
               placeholder="Type your message to Claude..."
@@ -273,7 +308,8 @@ export default function ConversationsScreen() {
                 styles.button,
                 styles.buttonPrimary,
                 { minHeight: 56, paddingVertical: 16, paddingHorizontal: 20 },
-                (!inputText.trim() || conversationState !== "idle") && styles.buttonDisabled
+                (!inputText.trim() || conversationState !== "idle") &&
+                  styles.buttonDisabled,
               ]}
               onPress={sendMessage}
               disabled={!inputText.trim() || conversationState !== "idle"}
@@ -283,9 +319,14 @@ export default function ConversationsScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-          
+
           {/* Character count */}
-          <Text style={[styles.textRight, { fontSize: 12, color: palette.textSecondary, marginTop: 4 }]}>
+          <Text
+            style={[
+              styles.textRight,
+              { fontSize: 12, color: palette.textSecondary, marginTop: 4 },
+            ]}
+          >
             {inputText.length}/1000 characters
           </Text>
         </View>
@@ -293,11 +334,27 @@ export default function ConversationsScreen() {
         {/* Conversation State */}
         {conversationState !== "idle" && (
           <View style={styles.section}>
-            <View style={[
-              styles.card,
-              { backgroundColor: getStateColor(conversationState), flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }
-            ]}>
-              <Text style={[{ color: 'white', fontSize: 16, fontWeight: '600', textAlign: 'center' }]}>
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: getStateColor(conversationState),
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  {
+                    color: "white",
+                    fontSize: 16,
+                    fontWeight: "600",
+                    textAlign: "center",
+                  },
+                ]}
+              >
                 {getStateMessage(conversationState)}
               </Text>
               {conversationState === "waiting_for_claude" && (
@@ -321,16 +378,31 @@ export default function ConversationsScreen() {
                 .sort((a: any, b: any) => b.timestamp - a.timestamp)
                 .slice(0, 10)
                 .map((message: any) => (
-                  <View key={message.id} style={[
-                    styles.messageCard,
-                    { borderLeftColor: message.role === 'user' ? palette.accent : palette.success }
-                  ]}>
+                  <View
+                    key={message.id}
+                    style={[
+                      styles.messageCard,
+                      {
+                        borderLeftColor:
+                          message.role === "user"
+                            ? palette.accent
+                            : palette.success,
+                      },
+                    ]}
+                  >
                     <View style={styles.messageHeader}>
-                      <Text style={[
-                        styles.messageRole,
-                        { color: message.role === 'user' ? palette.accent : palette.success }
-                      ]}>
-                        {message.role === 'user' ? '👤 You' : '🤖 Claude'}
+                      <Text
+                        style={[
+                          styles.messageRole,
+                          {
+                            color:
+                              message.role === "user"
+                                ? palette.accent
+                                : palette.success,
+                          },
+                        ]}
+                      >
+                        {message.role === "user" ? "👤 You" : "🤖 Claude"}
                       </Text>
                       <Text style={styles.messageTime}>
                         {new Date(message.timestamp).toLocaleTimeString()}
@@ -338,7 +410,16 @@ export default function ConversationsScreen() {
                     </View>
                     <Text style={styles.messageContent}>{message.content}</Text>
                     {message.status && (
-                      <Text style={[{ fontSize: 12, color: palette.textSecondary, marginTop: 8, fontStyle: 'italic' }]}>
+                      <Text
+                        style={[
+                          {
+                            fontSize: 12,
+                            color: palette.textSecondary,
+                            marginTop: 8,
+                            fontStyle: "italic",
+                          },
+                        ]}
+                      >
                         Status: {message.status}
                       </Text>
                     )}
@@ -362,20 +443,30 @@ export default function ConversationsScreen() {
 
 function getStateColor(state: ConversationState): string {
   switch (state) {
-    case "sending": return "#F59E0B";
-    case "waiting_for_claude": return "#3B82F6";
-    case "claude_responding": return "#10B981";
-    case "error": return "#EF4444";
-    default: return "#6B7280";
+    case "sending":
+      return "#F59E0B";
+    case "waiting_for_claude":
+      return "#3B82F6";
+    case "claude_responding":
+      return "#10B981";
+    case "error":
+      return "#EF4444";
+    default:
+      return "#6B7280";
   }
 }
 
 function getStateMessage(state: ConversationState): string {
   switch (state) {
-    case "sending": return "Sending message...";
-    case "waiting_for_claude": return "Waiting for Claude to respond...";
-    case "claude_responding": return "Claude is typing...";
-    case "error": return "An error occurred";
-    default: return "";
+    case "sending":
+      return "Sending message...";
+    case "waiting_for_claude":
+      return "Waiting for Claude to respond...";
+    case "claude_responding":
+      return "Claude is typing...";
+    case "error":
+      return "An error occurred";
+    default:
+      return "";
   }
 }

@@ -1,14 +1,18 @@
-
 import { query } from "@anthropic-ai/claude-code";
 import process from "process";
-import { config } from 'dotenv';
+import { config } from "dotenv";
 
 // Load environment variables from .env file
 config();
 
 // Validate required environment variables
-if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY === "your-api-key-here") {
-  console.error("❌ ANTHROPIC_API_KEY is required. Please set it in your .env file.");
+if (
+  !process.env.ANTHROPIC_API_KEY ||
+  process.env.ANTHROPIC_API_KEY === "your-api-key-here"
+) {
+  console.error(
+    "❌ ANTHROPIC_API_KEY is required. Please set it in your .env file.",
+  );
   process.exit(1);
 }
 
@@ -33,16 +37,16 @@ async function testClaude() {
             console.error("Claude Code stderr:", data.trim());
           }
         },
-      }
+      },
     });
 
     let testResponse = "";
     let messageCount = 0;
-    
+
     for await (const message of testQuery) {
       messageCount++;
       console.log(`Received message ${messageCount}:`, { type: message.type });
-      
+
       if (message.type === "assistant") {
         // Extract text from the proper message structure
         const assistantMessage = message as any;
@@ -71,7 +75,7 @@ async function testClaude() {
     console.log("Error details:", {
       name: (error as any)?.name,
       message: (error as any)?.message,
-      stack: (error as any)?.stack?.split('\n').slice(0, 5).join('\n')
+      stack: (error as any)?.stack?.split("\n").slice(0, 5).join("\n"),
     });
     process.exit(1);
   }

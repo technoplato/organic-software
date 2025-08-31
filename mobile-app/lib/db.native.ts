@@ -1,2 +1,1 @@
-export { init, tx, id } from '@instantdb/react-native';
-
+export { init, tx, id } from "@instantdb/react-native";

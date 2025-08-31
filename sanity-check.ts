@@ -45,13 +45,15 @@ async function main() {
     });
 
     // Load admin token from environment
-    const adminToken = process.env.INSTANTDB_ADMIN_TOKEN || "ada8f4c3-5947-456f-8ee6-6425d7bf94a7";
-    
-    const db = init({ 
-      appId: APP_ID, 
+    const adminToken =
+      process.env.INSTANTDB_ADMIN_TOKEN ||
+      "ada8f4c3-5947-456f-8ee6-6425d7bf94a7";
+
+    const db = init({
+      appId: APP_ID,
       adminToken,
-      schema, 
-      verbose: true 
+      schema,
+      verbose: true,
     });
     console.log("✅ Successfully initialized InstantDB with schema");
 
@@ -71,7 +73,7 @@ async function main() {
 
     console.log("✅ Query executed successfully");
     console.log(
-      `   Found ${result.data.conversations?.length || 0} conversations`
+      `   Found ${result.data.conversations?.length || 0} conversations`,
     );
 
     // Test 5: Test transaction capability
@@ -121,10 +123,10 @@ async function main() {
     ) {
       console.log("✅ Data verification successful");
       console.log(
-        `   Found conversation: ${verifyResult.data.conversations[0]?.title}`
+        `   Found conversation: ${verifyResult.data.conversations[0]?.title}`,
       );
       console.log(
-        `   Found message: ${verifyResult.data.messages[0]?.content}`
+        `   Found message: ${verifyResult.data.messages[0]?.content}`,
       );
     } else {
       console.log("⚠️  Data verification failed - data not found");
@@ -140,7 +142,7 @@ async function main() {
         if (!resp.error) {
           subscriptionWorking = true;
         }
-      }
+      },
     );
 
     // Wait a moment for subscription to initialize

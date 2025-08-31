@@ -1,10 +1,12 @@
-import { useMemo } from 'react';
-import { View, Text, FlatList, SafeAreaView } from 'react-native';
-import { init } from '@instantdb/react-native';
-import useStyles from '../lib/useStyles';
+import { useMemo } from "react";
+import { View, Text, FlatList, SafeAreaView } from "react-native";
+import { init } from "@instantdb/react-native";
+import useStyles from "../lib/useStyles";
 
 const db = init({
-  appId: process.env.EXPO_PUBLIC_INSTANTDB_APP_ID || '54d69382-c27c-4e54-b2ac-c3dcaef2f0ad',
+  appId:
+    process.env.EXPO_PUBLIC_INSTANTDB_APP_ID ||
+    "54d69382-c27c-4e54-b2ac-c3dcaef2f0ad",
 });
 
 interface Issue {
@@ -24,15 +26,19 @@ export default function IssuesScreen() {
 
   const sorted = useMemo(
     () => [...issues].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)),
-    [issues]
+    [issues],
   );
 
   const getPriorityColor = (priority?: string) => {
     switch (priority) {
-      case "High": return palette.error;
-      case "Medium": return palette.warning;
-      case "Low": return palette.success;
-      default: return palette.textSecondary;
+      case "High":
+        return palette.error;
+      case "Medium":
+        return palette.warning;
+      case "Low":
+        return palette.success;
+      default:
+        return palette.textSecondary;
     }
   };
 
@@ -41,16 +47,48 @@ export default function IssuesScreen() {
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>{item.title}</Text>
         {item.priority && (
-          <View style={[{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: getPriorityColor(item.priority) }]}>
-            <Text style={[{ fontSize: 12, fontWeight: '600', color: 'white' }]}>{item.priority}</Text>
+          <View
+            style={[
+              {
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 6,
+                backgroundColor: getPriorityColor(item.priority),
+              },
+            ]}
+          >
+            <Text style={[{ fontSize: 12, fontWeight: "600", color: "white" }]}>
+              {item.priority}
+            </Text>
           </View>
         )}
       </View>
       {item.description && (
         <Text style={styles.cardDescription}>{item.description}</Text>
       )}
-      <View style={[styles.flexRow, styles.justifyBetween, styles.alignCenter, { marginTop: 12 }]}>
-        <Text style={[{ fontSize: 12, fontWeight: '600', color: palette.textPrimary, backgroundColor: palette.surface, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: palette.border }]}>
+      <View
+        style={[
+          styles.flexRow,
+          styles.justifyBetween,
+          styles.alignCenter,
+          { marginTop: 12 },
+        ]}
+      >
+        <Text
+          style={[
+            {
+              fontSize: 12,
+              fontWeight: "600",
+              color: palette.textPrimary,
+              backgroundColor: palette.surface,
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 6,
+              borderWidth: 1,
+              borderColor: palette.border,
+            },
+          ]}
+        >
           {item.status}
         </Text>
         {item.createdAt && (
@@ -88,19 +126,24 @@ export default function IssuesScreen() {
         <Text style={styles.title}>🐛 Issues</Text>
         <Text style={styles.subtitle}>Track project issues and bugs</Text>
       </View>
-      
+
       {sorted.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateIcon}>🐛</Text>
           <Text style={styles.emptyStateTitle}>No issues found</Text>
-          <Text style={styles.emptyStateText}>Issues will appear here when they are created</Text>
+          <Text style={styles.emptyStateText}>
+            Issues will appear here when they are created
+          </Text>
         </View>
       ) : (
         <FlatList
           data={sorted}
           renderItem={renderIssue}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={[styles.paddingHorizontal, { paddingBottom: 20 }]}
+          contentContainerStyle={[
+            styles.paddingHorizontal,
+            { paddingBottom: 20 },
+          ]}
           showsVerticalScrollIndicator={false}
         />
       )}

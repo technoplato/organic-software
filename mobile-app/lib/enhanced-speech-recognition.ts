@@ -17,7 +17,8 @@ export const RecognitionState = {
   ERROR: "error",
 } as const;
 
-export type RecognitionStateType = typeof RecognitionState[keyof typeof RecognitionState];
+export type RecognitionStateType =
+  (typeof RecognitionState)[keyof typeof RecognitionState];
 
 // Transcript segment interface
 export interface TranscriptSegment {
@@ -89,18 +90,18 @@ export interface EnhancedSpeechRecognitionHook {
   isRecognizing: boolean;
   error: string | null;
   recordingUri: string | null;
-  
+
   // Timer state
   elapsedSeconds: number;
   sessionStartTime: number | null;
-  
+
   // Auto-restart state
   autoRestart: boolean;
   restartAttempts: number;
-  
+
   // Volume state
   volumeLevel: number;
-  
+
   // Methods
   start: () => Promise<void>;
   stop: () => void;
@@ -114,7 +115,9 @@ const MAX_RESTART_ATTEMPTS = 5;
 const RESTART_DELAY_MS = 1000;
 
 export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
-  const [state, setState] = useState<RecognitionStateType>(RecognitionState.IDLE);
+  const [state, setState] = useState<RecognitionStateType>(
+    RecognitionState.IDLE,
+  );
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [interimTranscript, setInterimTranscript] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -124,12 +127,12 @@ export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
   const [autoRestart, setAutoRestart] = useState(true);
   const [restartAttempts, setRestartAttempts] = useState(0);
   const [volumeLevel, setVolumeLevel] = useState(0);
-  
+
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isStoppingRef = useRef(false);
   const restartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const segmentIdCounter = useRef(0);
-  
+
   // Silence detection for creating segments
   const lastTranscriptRef = useRef("");
   const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -175,115 +178,145 @@ export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
 
   useSpeechRecognitionEvent("end", () => {
     const wasRecognizing = state === RecognitionState.RECOGNIZING;
-    const shouldRestart = autoRestart && 
-                          wasRecognizing && 
-                          !isStoppingRef.current && 
-                          restartAttempts < MAX_RESTART_ATTEMPTS;
+    const shouldRestart =
+      autoRestart &&
+      wasRecognizing &&
+      !isStoppingRef.current &&
+      restartAttempts < MAX_RESTART_ATTEMPTS;
 
     setState(RecognitionState.IDLE);
 
     if (shouldRestart) {
       // Auto-restart with exponential backoff
       const delay = RESTART_DELAY_MS * Math.pow(2, restartAttempts);
-      console.log(`Auto-restarting in ${delay}ms (attempt ${restartAttempts + 1}/${MAX_RESTART_ATTEMPTS})`);
-      
+      console.log(
+        `Auto-restarting in ${delay}ms (attempt ${restartAttempts + 1}/${MAX_RESTART_ATTEMPTS})`,
+      );
+
       restartTimeoutRef.current = setTimeout(() => {
         if (autoRestart && !isStoppingRef.current) {
-          setRestartAttempts(prev => prev + 1);
+          setRestartAttempts((prev) => prev + 1);
           startRecognition();
         }
       }, delay);
     } else if (!isStoppingRef.current) {
       // Recognition ended unexpectedly without auto-restart
-      console.log("Recognition ended. Auto-restart is disabled or max attempts reached.");
+      console.log(
+        "Recognition ended. Auto-restart is disabled or max attempts reached.",
+      );
     }
-    
+
     isStoppingRef.current = false;
   });
 
-  useSpeechRecognitionEvent("result", (event: { results: ExpoSpeechRecognitionResult[]; isFinal: boolean }) => {
-    if (event.results.length > 0) {
-      const result = event.results[0];
-      const currentTime = sessionStartTime ? Math.floor((Date.now() - sessionStartTime) / 1000) : 0;
-      
-      if (event.isFinal) {
-        // Create a new segment for final result
-        const newSegment: TranscriptSegment = {
-          id: `segment-${segmentIdCounter.current++}`,
-          text: result.transcript,
-          timestamp: currentTime,
-          confidence: result.confidence,
-          isFinal: true,
-        };
-        
-        setSegments(prev => [...prev, newSegment]);
-        setInterimTranscript("");
-        pendingSegmentRef.current = "";
-        lastTranscriptRef.current = "";
-        lastSegmentedTextRef.current = result.transcript; // Track what we've segmented
-        
-        // Clear any pending silence timeout
-        if (silenceTimeoutRef.current) {
-          clearTimeout(silenceTimeoutRef.current);
-          silenceTimeoutRef.current = null;
-        }
-      } else {
-        // Update interim transcript
-        // Extract only the new text that hasn't been segmented yet
-        let newText = result.transcript;
-        if (lastSegmentedTextRef.current && newText.startsWith(lastSegmentedTextRef.current)) {
-          // Remove already segmented text from the beginning
-          newText = newText.substring(lastSegmentedTextRef.current.length).trim();
-        }
-        
-        setInterimTranscript(newText);
-        
-        // Check if transcript has changed (new words detected)
-        if (result.transcript !== lastTranscriptRef.current && result.transcript.trim() !== "") {
-          lastTranscriptRef.current = result.transcript;
-          pendingSegmentRef.current = newText; // Store only the new text
-          
-          // Clear existing timeout and start a new one
+  useSpeechRecognitionEvent(
+    "result",
+    (event: { results: ExpoSpeechRecognitionResult[]; isFinal: boolean }) => {
+      if (event.results.length > 0) {
+        const result = event.results[0];
+        const currentTime = sessionStartTime
+          ? Math.floor((Date.now() - sessionStartTime) / 1000)
+          : 0;
+
+        if (event.isFinal) {
+          // Create a new segment for final result
+          const newSegment: TranscriptSegment = {
+            id: `segment-${segmentIdCounter.current++}`,
+            text: result.transcript,
+            timestamp: currentTime,
+            confidence: result.confidence,
+            isFinal: true,
+          };
+
+          setSegments((prev) => [...prev, newSegment]);
+          setInterimTranscript("");
+          pendingSegmentRef.current = "";
+          lastTranscriptRef.current = "";
+          lastSegmentedTextRef.current = result.transcript; // Track what we've segmented
+
+          // Clear any pending silence timeout
           if (silenceTimeoutRef.current) {
             clearTimeout(silenceTimeoutRef.current);
+            silenceTimeoutRef.current = null;
           }
-          
-          // After 3 seconds of no new words, create a segment
-          silenceTimeoutRef.current = setTimeout(() => {
-            if (pendingSegmentRef.current && pendingSegmentRef.current.trim() !== "") {
-              const segmentTimestamp = sessionStartTime ? Math.floor((Date.now() - sessionStartTime) / 1000) : 0;
-              const newSegment: TranscriptSegment = {
-                id: `segment-${segmentIdCounter.current++}`,
-                text: pendingSegmentRef.current,
-                timestamp: segmentTimestamp,
-                confidence: undefined,
-                isFinal: false, // Mark as non-final since it's from silence detection
-              };
-              
-              setSegments(prev => [...prev, newSegment]);
-              setInterimTranscript("");
-              
-              // Update what we've segmented
-              lastSegmentedTextRef.current = lastTranscriptRef.current;
-              pendingSegmentRef.current = "";
+        } else {
+          // Update interim transcript
+          // Extract only the new text that hasn't been segmented yet
+          let newText = result.transcript;
+          if (
+            lastSegmentedTextRef.current &&
+            newText.startsWith(lastSegmentedTextRef.current)
+          ) {
+            // Remove already segmented text from the beginning
+            newText = newText
+              .substring(lastSegmentedTextRef.current.length)
+              .trim();
+          }
+
+          setInterimTranscript(newText);
+
+          // Check if transcript has changed (new words detected)
+          if (
+            result.transcript !== lastTranscriptRef.current &&
+            result.transcript.trim() !== ""
+          ) {
+            lastTranscriptRef.current = result.transcript;
+            pendingSegmentRef.current = newText; // Store only the new text
+
+            // Clear existing timeout and start a new one
+            if (silenceTimeoutRef.current) {
+              clearTimeout(silenceTimeoutRef.current);
             }
-          }, SILENCE_THRESHOLD_MS);
+
+            // After 3 seconds of no new words, create a segment
+            silenceTimeoutRef.current = setTimeout(() => {
+              if (
+                pendingSegmentRef.current &&
+                pendingSegmentRef.current.trim() !== ""
+              ) {
+                const segmentTimestamp = sessionStartTime
+                  ? Math.floor((Date.now() - sessionStartTime) / 1000)
+                  : 0;
+                const newSegment: TranscriptSegment = {
+                  id: `segment-${segmentIdCounter.current++}`,
+                  text: pendingSegmentRef.current,
+                  timestamp: segmentTimestamp,
+                  confidence: undefined,
+                  isFinal: false, // Mark as non-final since it's from silence detection
+                };
+
+                setSegments((prev) => [...prev, newSegment]);
+                setInterimTranscript("");
+
+                // Update what we've segmented
+                lastSegmentedTextRef.current = lastTranscriptRef.current;
+                pendingSegmentRef.current = "";
+              }
+            }, SILENCE_THRESHOLD_MS);
+          }
         }
       }
-    }
-  });
+    },
+  );
 
-  useSpeechRecognitionEvent("error", (event: ExpoSpeechRecognitionErrorEvent) => {
-    setState(RecognitionState.ERROR);
-    setError(`${event.error}: ${event.message}`);
-    console.error("Speech recognition error:", event);
-    
-    // Don't auto-restart on certain errors
-    const nonRestartableErrors = ["not-allowed", "language-not-supported", "service-not-allowed"];
-    if (nonRestartableErrors.includes(event.error)) {
-      setAutoRestart(false);
-    }
-  });
+  useSpeechRecognitionEvent(
+    "error",
+    (event: ExpoSpeechRecognitionErrorEvent) => {
+      setState(RecognitionState.ERROR);
+      setError(`${event.error}: ${event.message}`);
+      console.error("Speech recognition error:", event);
+
+      // Don't auto-restart on certain errors
+      const nonRestartableErrors = [
+        "not-allowed",
+        "language-not-supported",
+        "service-not-allowed",
+      ];
+      if (nonRestartableErrors.includes(event.error)) {
+        setAutoRestart(false);
+      }
+    },
+  );
 
   useSpeechRecognitionEvent("audiostart", (event: { uri: string | null }) => {
     if (event.uri) {
@@ -306,18 +339,21 @@ export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
   const startRecognition = async () => {
     try {
       setState(RecognitionState.STARTING);
-      
+
       // Request permissions
-      const result = await ExpoSpeechRecognitionModule.requestMicrophonePermissionsAsync();
+      const result =
+        await ExpoSpeechRecognitionModule.requestMicrophonePermissionsAsync();
       if (!result.granted) {
         throw new Error("Microphone permissions not granted");
       }
-      
+
       // Start recognition with enhanced config
       ExpoSpeechRecognitionModule.start(ENHANCED_SPEECH_CONFIG);
     } catch (err) {
       setState(RecognitionState.ERROR);
-      setError(err instanceof Error ? err.message : "Failed to start recognition");
+      setError(
+        err instanceof Error ? err.message : "Failed to start recognition",
+      );
       console.error("Failed to start speech recognition:", err);
       setAutoRestart(false);
     }
@@ -330,64 +366,64 @@ export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
       clearTimeout(restartTimeoutRef.current);
       restartTimeoutRef.current = null;
     }
-    
+
     isStoppingRef.current = false;
     setRestartAttempts(0);
-    
+
     if (!sessionStartTime) {
       setSessionStartTime(Date.now());
       setElapsedSeconds(0);
     }
-    
+
     await startRecognition();
   }, [sessionStartTime]);
 
   const stop = useCallback(() => {
     isStoppingRef.current = true;
-    
+
     // Clear any pending restart
     if (restartTimeoutRef.current) {
       clearTimeout(restartTimeoutRef.current);
       restartTimeoutRef.current = null;
     }
-    
+
     setState(RecognitionState.STOPPING);
     ExpoSpeechRecognitionModule.stop();
   }, []);
 
   const abort = useCallback(() => {
     isStoppingRef.current = true;
-    
+
     // Clear any pending restart
     if (restartTimeoutRef.current) {
       clearTimeout(restartTimeoutRef.current);
       restartTimeoutRef.current = null;
     }
-    
+
     setState(RecognitionState.IDLE);
     ExpoSpeechRecognitionModule.abort();
   }, []);
 
   const reset = useCallback(() => {
     isStoppingRef.current = true;
-    
+
     // Clear any pending restart
     if (restartTimeoutRef.current) {
       clearTimeout(restartTimeoutRef.current);
       restartTimeoutRef.current = null;
     }
-    
+
     // Clear silence detection timeout
     if (silenceTimeoutRef.current) {
       clearTimeout(silenceTimeoutRef.current);
       silenceTimeoutRef.current = null;
     }
-    
+
     // Abort any ongoing recognition
     if (state === RecognitionState.RECOGNIZING) {
       ExpoSpeechRecognitionModule.abort();
     }
-    
+
     // Reset all state
     setState(RecognitionState.IDLE);
     setSegments([]);
@@ -405,25 +441,26 @@ export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
   }, [state]);
 
   const toggleAutoRestart = useCallback(() => {
-    setAutoRestart(prev => !prev);
+    setAutoRestart((prev) => !prev);
   }, []);
 
   const exportTranscript = useCallback(() => {
-    const header = `Speech Recognition Transcript\n` +
-                   `Date: ${new Date().toLocaleString()}\n` +
-                   `Duration: ${Math.floor(elapsedSeconds / 60)}:${(elapsedSeconds % 60).toString().padStart(2, '0')}\n` +
-                   `Segments: ${segments.length}\n` +
-                   `${'='.repeat(50)}\n\n`;
-    
+    const header =
+      `Speech Recognition Transcript\n` +
+      `Date: ${new Date().toLocaleString()}\n` +
+      `Duration: ${Math.floor(elapsedSeconds / 60)}:${(elapsedSeconds % 60).toString().padStart(2, "0")}\n` +
+      `Segments: ${segments.length}\n` +
+      `${"=".repeat(50)}\n\n`;
+
     const content = segments
-      .map(segment => {
+      .map((segment) => {
         const minutes = Math.floor(segment.timestamp / 60);
         const seconds = segment.timestamp % 60;
-        const timeStr = `[${minutes}:${seconds.toString().padStart(2, '0')}]`;
+        const timeStr = `[${minutes}:${seconds.toString().padStart(2, "0")}]`;
         return `${timeStr} ${segment.text}`;
       })
-      .join('\n\n');
-    
+      .join("\n\n");
+
     return header + content;
   }, [segments, elapsedSeconds]);
 
@@ -450,18 +487,18 @@ export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
     isRecognizing: state === RecognitionState.RECOGNIZING,
     error,
     recordingUri,
-    
+
     // Timer state
     elapsedSeconds,
     sessionStartTime,
-    
+
     // Auto-restart state
     autoRestart,
     restartAttempts,
-    
+
     // Volume state
     volumeLevel,
-    
+
     // Methods
     start,
     stop,

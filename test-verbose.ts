@@ -30,24 +30,27 @@ async function testVerbose() {
   try {
     console.log("\n💾 Creating a todo...");
     const todoId = id();
-    
+
     await db.transact(
       tx.todos[todoId].update({
         text: "Verbose test todo",
         done: false,
         createdAt: Date.now(),
-      })
+      }),
     );
 
     console.log("✅ Transaction completed: " + todoId);
 
     console.log("\n📊 Attempting query with 10 second timeout...");
-    
+
     // Try with a longer timeout
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("Query timed out after 10 seconds")), 10000)
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error("Query timed out after 10 seconds")),
+        10000,
+      ),
     );
-    
+
     const queryPromise = db.queryOnce({
       todos: {
         $: {
@@ -66,19 +69,16 @@ async function testVerbose() {
     // Also try subscription
     console.log("\n📡 Testing subscription...");
     let gotData = false;
-    
-    const unsubscribe = db.subscribeQuery(
-      { todos: {} },
-      (resp) => {
-        console.log("📨 Subscription response received:", resp);
-        if (!resp.error) {
-          gotData = true;
-        }
-      }
-    );
 
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    
+    const unsubscribe = db.subscribeQuery({ todos: {} }, (resp) => {
+      console.log("📨 Subscription response received:", resp);
+      if (!resp.error) {
+        gotData = true;
+      }
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
     if (gotData) {
       console.log("✅ Subscription working");
     } else {

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -13,22 +12,26 @@ import {
   Share,
   Platform,
 } from "react-native";
-import { useEnhancedSpeechRecognition, RecognitionState, type TranscriptSegment } from "../lib/enhanced-speech-recognition";
+import {
+  useEnhancedSpeechRecognition,
+  RecognitionState,
+  type TranscriptSegment,
+} from "../lib/enhanced-speech-recognition";
 import { checkSpeechRecognitionAvailability } from "../lib/speech-recognition";
 
 // Timer Display Component
-function TimerDisplay({ 
-  elapsedSeconds, 
-  isRecording, 
-  segmentCount 
-}: { 
-  elapsedSeconds: number; 
-  isRecording: boolean; 
+function TimerDisplay({
+  elapsedSeconds,
+  isRecording,
+  segmentCount,
+}: {
+  elapsedSeconds: number;
+  isRecording: boolean;
   segmentCount: number;
 }) {
   const minutes = Math.floor(elapsedSeconds / 60);
   const seconds = elapsedSeconds % 60;
-  const timeStr = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  const timeStr = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 
   return (
     <View style={styles.timerContainer}>
@@ -48,13 +51,13 @@ function TimerDisplay({
 }
 
 // Segment List Component
-function SegmentList({ 
-  segments, 
-  interimText, 
-  currentTime 
-}: { 
-  segments: TranscriptSegment[]; 
-  interimText: string; 
+function SegmentList({
+  segments,
+  interimText,
+  currentTime,
+}: {
+  segments: TranscriptSegment[];
+  interimText: string;
   currentTime: number;
 }) {
   const scrollViewRef = React.useRef<ScrollView>(null);
@@ -67,11 +70,11 @@ function SegmentList({
   const formatTimestamp = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   return (
-    <ScrollView 
+    <ScrollView
       ref={scrollViewRef}
       style={styles.segmentList}
       contentContainerStyle={styles.segmentListContent}
@@ -81,29 +84,25 @@ function SegmentList({
           Transcript segments will appear here...
         </Text>
       )}
-      
+
       {segments.map((segment) => (
-        <View key={segment.id} style={[
-          styles.segment,
-          !segment.isFinal && styles.silenceSegment
-        ]}>
+        <View
+          key={segment.id}
+          style={[styles.segment, !segment.isFinal && styles.silenceSegment]}
+        >
           <View style={styles.segmentHeader}>
             <Text style={styles.segmentTime}>
               {formatTimestamp(segment.timestamp)}
             </Text>
-            {!segment.isFinal && (
-              <Text style={styles.segmentBadge}>Auto</Text>
-            )}
+            {!segment.isFinal && <Text style={styles.segmentBadge}>Auto</Text>}
           </View>
           <Text style={styles.segmentText}>{segment.text}</Text>
         </View>
       ))}
-      
+
       {interimText && (
         <View style={[styles.segment, styles.interimSegment]}>
-          <Text style={styles.segmentTime}>
-            {formatTimestamp(currentTime)}
-          </Text>
+          <Text style={styles.segmentTime}>{formatTimestamp(currentTime)}</Text>
           <Text style={[styles.segmentText, styles.interimText]}>
             {interimText}
           </Text>
@@ -116,19 +115,23 @@ function SegmentList({
 // Volume Meter Component
 function VolumeMeter({ level }: { level: number }) {
   const normalizedLevel = Math.max(0, Math.min(10, level + 2)) / 12; // Normalize -2 to 10 => 0 to 1
-  
+
   return (
     <View style={styles.volumeMeter}>
       <View style={styles.volumeBarContainer}>
-        <View 
+        <View
           style={[
-            styles.volumeBar, 
-            { 
+            styles.volumeBar,
+            {
               width: `${normalizedLevel * 100}%`,
-              backgroundColor: normalizedLevel > 0.7 ? '#EF4444' : 
-                              normalizedLevel > 0.4 ? '#F59E0B' : '#10B981'
-            }
-          ]} 
+              backgroundColor:
+                normalizedLevel > 0.7
+                  ? "#EF4444"
+                  : normalizedLevel > 0.4
+                    ? "#F59E0B"
+                    : "#10B981",
+            },
+          ]}
         />
       </View>
       <Text style={styles.volumeLabel}>Volume</Text>
@@ -171,7 +174,7 @@ export default function EnhancedSpeechDemo() {
     if (!capabilities?.isAvailable) {
       Alert.alert(
         "Speech Recognition Unavailable",
-        "Speech recognition is not available on this device. Please enable Siri & Dictation in Settings."
+        "Speech recognition is not available on this device. Please enable Siri & Dictation in Settings.",
       );
       return;
     }
@@ -224,7 +227,9 @@ export default function EnhancedSpeechDemo() {
     }
   };
 
-  const currentTime = sessionStartTime ? Math.floor((Date.now() - sessionStartTime) / 1000) : 0;
+  const currentTime = sessionStartTime
+    ? Math.floor((Date.now() - sessionStartTime) / 1000)
+    : 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -232,12 +237,12 @@ export default function EnhancedSpeechDemo() {
         <View style={styles.header}>
           <Text style={styles.title}>🎙️ Enhanced Speech Demo</Text>
           <Text style={styles.subtitle}>
-            {Platform.OS === 'ios' ? 'iOS' : 'Android'} • Continuous Recording
+            {Platform.OS === "ios" ? "iOS" : "Android"} • Continuous Recording
           </Text>
         </View>
 
         {/* Timer Display */}
-        <TimerDisplay 
+        <TimerDisplay
           elapsedSeconds={elapsedSeconds}
           isRecording={isRecognizing}
           segmentCount={segments.length}
@@ -260,9 +265,7 @@ export default function EnhancedSpeechDemo() {
         </View>
 
         {/* Volume Meter */}
-        {isRecognizing && (
-          <VolumeMeter level={volumeLevel} />
-        )}
+        {isRecognizing && <VolumeMeter level={volumeLevel} />}
 
         {/* Controls Section */}
         <View style={styles.section}>
@@ -279,7 +282,7 @@ export default function EnhancedSpeechDemo() {
             >
               <Text style={styles.buttonText}>Start</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[
                 styles.button,
@@ -291,7 +294,7 @@ export default function EnhancedSpeechDemo() {
             >
               <Text style={styles.buttonText}>Stop</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[
                 styles.button,
@@ -303,12 +306,9 @@ export default function EnhancedSpeechDemo() {
             >
               <Text style={styles.buttonText}>Abort</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
-              style={[
-                styles.button,
-                { backgroundColor: "#6B7280" },
-              ]}
+              style={[styles.button, { backgroundColor: "#6B7280" }]}
               onPress={reset}
             >
               <Text style={styles.buttonText}>Reset</Text>
@@ -353,7 +353,7 @@ export default function EnhancedSpeechDemo() {
             Transcript Segments ({segments.length})
           </Text>
           <View style={styles.transcriptCard}>
-            <SegmentList 
+            <SegmentList
               segments={segments}
               interimText={interimTranscript}
               currentTime={currentTime}
@@ -366,13 +366,14 @@ export default function EnhancedSpeechDemo() {
           <Text style={styles.sectionTitle}>Configuration</Text>
           <View style={styles.infoCard}>
             <Text style={styles.infoText}>
-              • Continuous Mode: ✅{'\n'}
-              • Auto-Restart: {autoRestart ? '✅' : '❌'}{'\n'}
-              • Silence Detection: 3 seconds{'\n'}
-              • Extended Timeout: {Platform.OS === 'android' ? '30s' : 'iOS Default'}{'\n'}
-              • Platform: {Platform.OS === 'ios' ? 'iOS (Siri)' : 'Android (Google)'}{'\n'}
-              • Recording: {recordingUri ? '✅ Saved' : '⏺️ Active'}{'\n'}
-              • Segment Creation: Silence or Final Result
+              • Continuous Mode: ✅{"\n"}• Auto-Restart:{" "}
+              {autoRestart ? "✅" : "❌"}
+              {"\n"}• Silence Detection: 3 seconds{"\n"}• Extended Timeout:{" "}
+              {Platform.OS === "android" ? "30s" : "iOS Default"}
+              {"\n"}• Platform:{" "}
+              {Platform.OS === "ios" ? "iOS (Siri)" : "Android (Google)"}
+              {"\n"}• Recording: {recordingUri ? "✅ Saved" : "⏺️ Active"}
+              {"\n"}• Segment Creation: Silence or Final Result
             </Text>
           </View>
         </View>
@@ -412,7 +413,7 @@ const styles = StyleSheet.create({
     color: "#374151",
     marginBottom: 12,
   },
-  
+
   // Timer styles
   timerContainer: {
     backgroundColor: "white",
@@ -456,7 +457,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#6B7280",
   },
-  
+
   // Segment list styles
   segmentList: {
     maxHeight: 300,
@@ -516,7 +517,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingVertical: 20,
   },
-  
+
   // Volume meter styles
   volumeMeter: {
     backgroundColor: "white",
@@ -545,7 +546,7 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     textAlign: "center",
   },
-  
+
   // Status styles
   statusCard: {
     backgroundColor: "white",
@@ -574,7 +575,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6B7280",
   },
-  
+
   // Button styles
   buttonGrid: {
     flexDirection: "row",
@@ -602,7 +603,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     minWidth: "100%",
   },
-  
+
   // Toggle styles
   toggleContainer: {
     flexDirection: "row",
@@ -623,7 +624,7 @@ const styles = StyleSheet.create({
     color: "#374151",
     fontWeight: "500",
   },
-  
+
   // Error styles
   errorCard: {
     backgroundColor: "#FEE2E2",
@@ -636,7 +637,7 @@ const styles = StyleSheet.create({
     color: "#991B1B",
     fontSize: 14,
   },
-  
+
   // Transcript styles
   transcriptCard: {
     backgroundColor: "white",
@@ -650,7 +651,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  
+
   // Info styles
   infoCard: {
     backgroundColor: "#F0FDF4",

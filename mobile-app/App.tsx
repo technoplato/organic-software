@@ -1,4 +1,4 @@
-import { StatusBar } from 'expo-status-bar';
+import { StatusBar } from "expo-status-bar";
 import {
   StyleSheet,
   Text,
@@ -12,13 +12,15 @@ import {
   ActivityIndicator,
   Animated,
   useColorScheme,
-} from 'react-native';
-import { useState, useEffect, useRef } from 'react';
-import { init, tx, id } from '@instantdb/react-native';
+} from "react-native";
+import { useState, useEffect, useRef } from "react";
+import { init, tx, id } from "@instantdb/react-native";
 
 // InstantDB configuration
 const db = init({
-  appId: process.env.EXPO_PUBLIC_INSTANTDB_APP_ID || "54d69382-c27c-4e54-b2ac-c3dcaef2f0ad",
+  appId:
+    process.env.EXPO_PUBLIC_INSTANTDB_APP_ID ||
+    "54d69382-c27c-4e54-b2ac-c3dcaef2f0ad",
 });
 
 // Define types matching the host application
@@ -42,7 +44,12 @@ interface Message {
   metadata?: Record<string, any>;
 }
 
-type ConversationState = "idle" | "sending" | "waiting_for_claude" | "claude_responding" | "error";
+type ConversationState =
+  | "idle"
+  | "sending"
+  | "waiting_for_claude"
+  | "claude_responding"
+  | "error";
 
 type Screen = "conversations" | "issues" | "hello";
 
@@ -56,13 +63,16 @@ interface Issue {
 export default function App() {
   const colorScheme = useColorScheme();
   const [currentScreen, setCurrentScreen] = useState<Screen>("conversations");
-  const [inputText, setInputText] = useState('');
-  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  const [conversationState, setConversationState] = useState<ConversationState>("idle");
+  const [inputText, setInputText] = useState("");
+  const [currentConversationId, setCurrentConversationId] = useState<
+    string | null
+  >(null);
+  const [conversationState, setConversationState] =
+    useState<ConversationState>("idle");
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const styles = getStyles(colorScheme);
-  
+
   const flatListRef = useRef<FlatList>(null);
   const scrollButtonOpacity = useRef(new Animated.Value(0)).current;
   const lastMessageCount = useRef(0);
@@ -71,46 +81,50 @@ export default function App() {
   const issues: Issue[] = [
     {
       title: "Expo Notifications",
-      description: "Add expo notifications for when messages are completed processing by Claude",
+      description:
+        "Add expo notifications for when messages are completed processing by Claude",
       priority: "High",
-      status: "Todo"
+      status: "Todo",
     },
     {
       title: "Claude Session Persistence",
-      description: "Add ability for Claude to maintain its session across app restarts",
+      description:
+        "Add ability for Claude to maintain its session across app restarts",
       priority: "High",
-      status: "Todo"
+      status: "Todo",
     },
     {
       title: "UI/UX Improvements",
-      description: "Improve layout, orientation handling, and styling to make the app much easier and nicer to use",
+      description:
+        "Improve layout, orientation handling, and styling to make the app much easier and nicer to use",
       priority: "High",
-      status: "Todo"
+      status: "Todo",
     },
     {
       title: "MCP Server Integration",
       description: "Enable Claude to use our MCP servers from the mobile app",
       priority: "Medium",
-      status: "Todo"
+      status: "Todo",
     },
     {
       title: "Hands-free Mode",
-      description: "Add hands-free version that works without popping up the keyboard",
+      description:
+        "Add hands-free version that works without popping up the keyboard",
       priority: "Medium",
-      status: "Todo"
+      status: "Todo",
     },
     {
       title: "Issues Database",
       description: "Create instant DB issues table viewable from the app",
       priority: "Low",
-      status: "Todo"
-    }
+      status: "Todo",
+    },
   ];
 
   // Query conversations, messages, and issues from InstantDB
   const { data, isLoading, error } = db.useQuery({
     conversations: {},
-    messages: currentConversationId 
+    messages: currentConversationId
       ? {
           $: {
             where: {
@@ -128,7 +142,7 @@ export default function App() {
 
   // Sort messages by timestamp
   const sortedMessages = [...messages].sort(
-    (a, b) => (a.timestamp || 0) - (b.timestamp || 0)
+    (a, b) => (a.timestamp || 0) - (b.timestamp || 0),
   );
 
   // Track conversation state based on message statuses
@@ -139,7 +153,7 @@ export default function App() {
     }
 
     const lastMessage = sortedMessages[sortedMessages.length - 1];
-    
+
     if (lastMessage) {
       if (lastMessage.status === "pending") {
         setConversationState("sending");
@@ -147,10 +161,13 @@ export default function App() {
         setConversationState("waiting_for_claude");
       } else if (lastMessage.status === "error") {
         setConversationState("error");
-      } else if (lastMessage.role === "user" && lastMessage.status === "completed") {
+      } else if (
+        lastMessage.role === "user" &&
+        lastMessage.status === "completed"
+      ) {
         // User message completed, likely waiting for Claude
         const hasAssistantResponse = sortedMessages.some(
-          m => m.role === "assistant" && m.timestamp > lastMessage.timestamp
+          (m) => m.role === "assistant" && m.timestamp > lastMessage.timestamp,
         );
         if (!hasAssistantResponse) {
           setConversationState("claude_responding");
@@ -176,8 +193,9 @@ export default function App() {
   // Handle scroll position for showing/hiding scroll button
   const handleScroll = (event: any) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    const isNearBottom = contentOffset.y >= contentSize.height - layoutMeasurement.height - 100;
-    
+    const isNearBottom =
+      contentOffset.y >= contentSize.height - layoutMeasurement.height - 100;
+
     if (!isNearBottom && !showScrollButton) {
       setShowScrollButton(true);
       setAutoScroll(false);
@@ -231,19 +249,21 @@ export default function App() {
       status: "pending" as const,
     };
 
-    await db.transact([
-      tx.messages[newMessage.id].update(newMessage),
-    ]);
+    await db.transact([tx.messages[newMessage.id].update(newMessage)]);
 
-    setInputText('');
-    
+    setInputText("");
+
     // Auto-scroll to the new message
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
   };
 
-  const createIssue = async (title: string, description: string, priority: "High" | "Medium" | "Low" = "Medium") => {
+  const createIssue = async (
+    title: string,
+    description: string,
+    priority: "High" | "Medium" | "Low" = "Medium",
+  ) => {
     const newIssue = {
       id: id(),
       title,
@@ -254,9 +274,7 @@ export default function App() {
       updatedAt: Date.now(),
     };
 
-    await db.transact([
-      tx.issues[newIssue.id].update(newIssue),
-    ]);
+    await db.transact([tx.issues[newIssue.id].update(newIssue)]);
   };
 
   const getStatusIcon = (status?: string) => {
@@ -290,19 +308,27 @@ export default function App() {
   };
 
   const renderMessage = ({ item }: { item: Message }) => (
-    <View style={[
-      styles.messageContainer,
-      item.role === 'user' ? styles.userMessage : 
-      item.role === 'assistant' ? styles.assistantMessage : styles.systemMessage
-    ]}>
+    <View
+      style={[
+        styles.messageContainer,
+        item.role === "user"
+          ? styles.userMessage
+          : item.role === "assistant"
+            ? styles.assistantMessage
+            : styles.systemMessage,
+      ]}
+    >
       <View style={styles.messageHeader}>
         <Text style={styles.messageRole}>
-          {item.role === 'user' ? '👤' : item.role === 'assistant' ? '🤖' : '⚙️'} {item.role.toUpperCase()}
+          {item.role === "user"
+            ? "👤"
+            : item.role === "assistant"
+              ? "🤖"
+              : "⚙️"}{" "}
+          {item.role.toUpperCase()}
         </Text>
         {item.status && (
-          <Text style={styles.messageStatus}>
-            {getStatusIcon(item.status)}
-          </Text>
+          <Text style={styles.messageStatus}>{getStatusIcon(item.status)}</Text>
         )}
       </View>
       <Text style={styles.messageContent}>{item.content}</Text>
@@ -316,26 +342,28 @@ export default function App() {
     <TouchableOpacity
       style={[
         styles.conversationItem,
-        currentConversationId === item.id && styles.activeConversation
+        currentConversationId === item.id && styles.activeConversation,
       ]}
       onPress={() => setCurrentConversationId(item.id)}
     >
       <Text style={styles.conversationTitle}>{item.title}</Text>
       <Text style={styles.conversationDate}>
-        {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}
+        {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ""}
       </Text>
-      {item.claudeSessionId && (
-        <Text style={styles.sessionIndicator}>🔄</Text>
-      )}
+      {item.claudeSessionId && <Text style={styles.sessionIndicator}>🔄</Text>}
     </TouchableOpacity>
   );
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case "High": return "#FF6B6B";
-      case "Medium": return "#FFD93D";
-      case "Low": return "#6BCF7F";
-      default: return "#999";
+      case "High":
+        return "#FF6B6B";
+      case "Medium":
+        return "#FFD93D";
+      case "Low":
+        return "#6BCF7F";
+      default:
+        return "#999";
     }
   };
 
@@ -343,16 +371,19 @@ export default function App() {
     <View style={styles.issueContainer}>
       <View style={styles.issueHeader}>
         <Text style={styles.issueTitle}>{item.title}</Text>
-        <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(item.priority) }]}>
+        <View
+          style={[
+            styles.priorityBadge,
+            { backgroundColor: getPriorityColor(item.priority) },
+          ]}
+        >
           <Text style={styles.priorityText}>{item.priority}</Text>
         </View>
       </View>
       <Text style={styles.issueDescription}>{item.description}</Text>
       <View style={styles.issueFooter}>
         {/* <Text style={[styles.statusBadge, styles[`status${item.status.replace(' ', '')}`]}> */}
-        <Text>
-          {item.status}
-        </Text>
+        <Text>{item.status}</Text>
       </View>
     </View>
   );
@@ -372,7 +403,9 @@ export default function App() {
   if (error) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text style={styles.errorText}>Error loading data: {error.message}</Text>
+        <Text style={styles.errorText}>
+          Error loading data: {error.message}
+        </Text>
         <StatusBar style="auto" />
       </SafeAreaView>
     );
@@ -380,26 +413,29 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardAvoid}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
         <Text style={styles.title}>Claude Code Remote Control</Text>
-        
+
         {/* Navigation Header */}
         {currentScreen === "conversations" && (
           <View style={styles.conversationsSection}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Conversations</Text>
               <View style={styles.buttonGroup}>
-                <TouchableOpacity 
-                  style={[styles.createButton, styles.helloButton]} 
+                <TouchableOpacity
+                  style={[styles.createButton, styles.helloButton]}
                   onPress={() => setCurrentScreen("hello")}
                 >
                   <Text style={styles.createButtonText}>Hello</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.createButton} onPress={createConversation}>
+                <TouchableOpacity
+                  style={styles.createButton}
+                  onPress={createConversation}
+                >
                   <Text style={styles.createButtonText}>+ New</Text>
                 </TouchableOpacity>
               </View>
@@ -419,8 +455,8 @@ export default function App() {
         {currentScreen === "hello" && (
           <View style={styles.helloScreen}>
             <View style={styles.sectionHeader}>
-              <TouchableOpacity 
-                style={styles.backButton} 
+              <TouchableOpacity
+                style={styles.backButton}
                 onPress={() => setCurrentScreen("conversations")}
               >
                 <Text style={styles.backButtonText}>← Back</Text>
@@ -460,12 +496,12 @@ export default function App() {
                 }
               }}
             />
-            
+
             {/* Floating Scroll to Bottom Button */}
-            <Animated.View 
+            <Animated.View
               style={[
                 styles.scrollToBottomButton,
-                { opacity: scrollButtonOpacity }
+                { opacity: scrollButtonOpacity },
               ]}
               pointerEvents={showScrollButton ? "auto" : "none"}
             >
@@ -487,11 +523,12 @@ export default function App() {
               multiline
               editable={conversationState !== "sending"}
             />
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[
                 styles.sendButton,
-                (!inputText.trim() || conversationState === "sending") && styles.sendButtonDisabled
-              ]} 
+                (!inputText.trim() || conversationState === "sending") &&
+                  styles.sendButtonDisabled,
+              ]}
               onPress={sendMessage}
               disabled={!inputText.trim() || conversationState === "sending"}
             >
@@ -502,36 +539,43 @@ export default function App() {
           </View>
         )}
 
-        {currentScreen === "conversations" && !currentConversationId && conversations.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No conversations yet.</Text>
-            <TouchableOpacity style={styles.createButton} onPress={createConversation}>
-              <Text style={styles.createButtonText}>Create First Conversation</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        {currentScreen === "conversations" &&
+          !currentConversationId &&
+          conversations.length === 0 && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No conversations yet.</Text>
+              <TouchableOpacity
+                style={styles.createButton}
+                onPress={createConversation}
+              >
+                <Text style={styles.createButtonText}>
+                  Create First Conversation
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
       </KeyboardAvoidingView>
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
     </SafeAreaView>
   );
 }
 
-const getStyles = (scheme: 'light' | 'dark' | null | undefined) => {
-  const isDark = scheme === 'dark';
+const getStyles = (scheme: "light" | "dark" | null | undefined) => {
+  const isDark = scheme === "dark";
   const palette = {
-    background: isDark ? '#121212' : '#FF69B4',
-    surface: isDark ? '#1E1E1E' : '#FFFFFF',
-    surfaceAlt1: isDark ? '#23201D' : '#FFF0E6',
-    surfaceAlt2: isDark ? '#201F23' : '#F3E5F5',
-    surfaceAlt3: isDark ? '#23221C' : '#FFF3CD',
-    textPrimary: isDark ? '#EDEDED' : '#333333',
-    textSecondary: isDark ? '#B0B0B0' : '#666666',
-    textTertiary: isDark ? '#9A9A9A' : '#999999',
-    border: isDark ? '#2A2A2A' : '#DDDDDD',
-    statusBg: isDark ? '#26211E' : '#FFF0E6',
-    statusText: '#FF6B35',
-    accent: '#FF6B35',
-    disabled: isDark ? '#555555' : '#CCCCCC',
+    background: isDark ? "#121212" : "#FF69B4",
+    surface: isDark ? "#1E1E1E" : "#FFFFFF",
+    surfaceAlt1: isDark ? "#23201D" : "#FFF0E6",
+    surfaceAlt2: isDark ? "#201F23" : "#F3E5F5",
+    surfaceAlt3: isDark ? "#23221C" : "#FFF3CD",
+    textPrimary: isDark ? "#EDEDED" : "#333333",
+    textSecondary: isDark ? "#B0B0B0" : "#666666",
+    textTertiary: isDark ? "#9A9A9A" : "#999999",
+    border: isDark ? "#2A2A2A" : "#DDDDDD",
+    statusBg: isDark ? "#26211E" : "#FFF0E6",
+    statusText: "#FF6B35",
+    accent: "#FF6B35",
+    disabled: isDark ? "#555555" : "#CCCCCC",
   } as const;
 
   return StyleSheet.create({
@@ -545,22 +589,22 @@ const getStyles = (scheme: 'light' | 'dark' | null | undefined) => {
     },
     loadingContainer: {
       flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
+      justifyContent: "center",
+      alignItems: "center",
     },
     loadingText: {
       marginTop: 10,
       color: palette.textSecondary,
     },
     errorText: {
-      color: '#FF5A5A',
-      textAlign: 'center',
+      color: "#FF5A5A",
+      textAlign: "center",
       margin: 20,
     },
     title: {
       fontSize: 24,
-      fontWeight: 'bold',
-      textAlign: 'center',
+      fontWeight: "bold",
+      textAlign: "center",
       marginBottom: 20,
       color: palette.textPrimary,
     },
@@ -568,14 +612,14 @@ const getStyles = (scheme: 'light' | 'dark' | null | undefined) => {
       marginBottom: 10,
     },
     sectionHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
       marginBottom: 10,
     },
     sectionTitle: {
       fontSize: 18,
-      fontWeight: '600',
+      fontWeight: "600",
       color: palette.textPrimary,
     },
     createButton: {
@@ -585,8 +629,8 @@ const getStyles = (scheme: 'light' | 'dark' | null | undefined) => {
       borderRadius: 6,
     },
     createButtonText: {
-      color: 'white',
-      fontWeight: '600',
+      color: "white",
+      fontWeight: "600",
     },
     conversationsList: {
       maxHeight: 80,
@@ -597,13 +641,13 @@ const getStyles = (scheme: 'light' | 'dark' | null | undefined) => {
       marginRight: 10,
       borderRadius: 8,
       minWidth: 120,
-      shadowColor: '#000',
+      shadowColor: "#000",
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: isDark ? 0.3 : 0.1,
       shadowRadius: 2,
       elevation: 2,
-      position: 'relative',
-      borderColor: isDark ? '#2A2A2A' : 'transparent',
+      position: "relative",
+      borderColor: isDark ? "#2A2A2A" : "transparent",
       borderWidth: isDark ? 1 : 0,
     },
     activeConversation: {
@@ -612,7 +656,7 @@ const getStyles = (scheme: 'light' | 'dark' | null | undefined) => {
       borderWidth: 2,
     },
     conversationTitle: {
-      fontWeight: '600',
+      fontWeight: "600",
       color: palette.textPrimary,
       fontSize: 12,
     },
@@ -622,14 +666,14 @@ const getStyles = (scheme: 'light' | 'dark' | null | undefined) => {
       marginTop: 4,
     },
     sessionIndicator: {
-      position: 'absolute',
+      position: "absolute",
       top: 5,
       right: 5,
       fontSize: 12,
     },
     statusBar: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       backgroundColor: palette.statusBg,
       padding: 8,
       borderRadius: 6,
@@ -638,12 +682,12 @@ const getStyles = (scheme: 'light' | 'dark' | null | undefined) => {
     statusText: {
       marginLeft: 8,
       color: palette.statusText,
-      fontStyle: 'italic',
+      fontStyle: "italic",
     },
     messagesSection: {
       flex: 1,
       marginBottom: 10,
-      position: 'relative',
+      position: "relative",
     },
     messagesList: {
       flex: 1,
@@ -653,16 +697,16 @@ const getStyles = (scheme: 'light' | 'dark' | null | undefined) => {
       padding: 12,
       marginVertical: 4,
       borderRadius: 8,
-      shadowColor: '#000',
+      shadowColor: "#000",
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: isDark ? 0.3 : 0.1,
       shadowRadius: 2,
       elevation: 2,
     },
     messageHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
       marginBottom: 4,
     },
     userMessage: {
@@ -678,7 +722,7 @@ const getStyles = (scheme: 'light' | 'dark' | null | undefined) => {
     },
     messageRole: {
       fontSize: 12,
-      fontWeight: '600',
+      fontWeight: "600",
       color: palette.textSecondary,
     },
     messageStatus: {
@@ -693,19 +737,19 @@ const getStyles = (scheme: 'light' | 'dark' | null | undefined) => {
     messageTime: {
       fontSize: 10,
       color: palette.textTertiary,
-      textAlign: 'right',
+      textAlign: "right",
     },
     scrollToBottomButton: {
-      position: 'absolute',
+      position: "absolute",
       bottom: 10,
       right: 10,
       backgroundColor: palette.accent,
       width: 40,
       height: 40,
       borderRadius: 20,
-      justifyContent: 'center',
-      alignItems: 'center',
-      shadowColor: '#000',
+      justifyContent: "center",
+      alignItems: "center",
+      shadowColor: "#000",
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: isDark ? 0.4 : 0.25,
       shadowRadius: 4,
@@ -715,12 +759,12 @@ const getStyles = (scheme: 'light' | 'dark' | null | undefined) => {
       fontSize: 20,
     },
     inputSection: {
-      flexDirection: 'row',
-      alignItems: 'flex-end',
+      flexDirection: "row",
+      alignItems: "flex-end",
       backgroundColor: palette.surface,
       padding: 12,
       borderRadius: 8,
-      shadowColor: '#000',
+      shadowColor: "#000",
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: isDark ? 0.3 : 0.1,
       shadowRadius: 2,
@@ -746,13 +790,13 @@ const getStyles = (scheme: 'light' | 'dark' | null | undefined) => {
       backgroundColor: palette.disabled,
     },
     sendButtonText: {
-      color: 'white',
-      fontWeight: '600',
+      color: "white",
+      fontWeight: "600",
     },
     emptyState: {
       flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
+      justifyContent: "center",
+      alignItems: "center",
     },
     emptyStateText: {
       fontSize: 16,
@@ -760,33 +804,33 @@ const getStyles = (scheme: 'light' | 'dark' | null | undefined) => {
       marginBottom: 20,
     },
     buttonGroup: {
-      flexDirection: 'row',
+      flexDirection: "row",
       gap: 8,
     },
     helloButton: {
-      backgroundColor: '#28a745',
+      backgroundColor: "#28a745",
     },
     backButton: {
-      backgroundColor: '#6c757d',
+      backgroundColor: "#6c757d",
       paddingHorizontal: 12,
       paddingVertical: 6,
       borderRadius: 6,
     },
     backButtonText: {
-      color: 'white',
-      fontWeight: '600',
+      color: "white",
+      fontWeight: "600",
     },
     helloScreen: {
       flex: 1,
     },
     helloContent: {
       flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
+      justifyContent: "center",
+      alignItems: "center",
     },
     helloText: {
       fontSize: 48,
-      fontWeight: 'bold',
+      fontWeight: "bold",
       color: palette.textPrimary,
     },
   });

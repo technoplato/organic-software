@@ -22,16 +22,19 @@ async function checkMessages() {
     }
 
     console.log(`\n📋 Found ${result.conversations.length} conversation(s):`);
-    
+
     for (const conversation of result.conversations) {
       console.log(`\n💬 ${conversation.title} (${conversation.id})`);
-      console.log(`   User: ${conversation.userId} | Status: ${conversation.status}`);
-      
+      console.log(
+        `   User: ${conversation.userId} | Status: ${conversation.status}`,
+      );
+
       // Get messages for this conversation
-      const conversationMessages = result.messages?.filter(
-        (msg: any) => msg.conversationId === conversation.id
-      ) || [];
-      
+      const conversationMessages =
+        result.messages?.filter(
+          (msg: any) => msg.conversationId === conversation.id,
+        ) || [];
+
       if (conversationMessages.length === 0) {
         console.log("   📭 No messages");
         continue;
@@ -45,16 +48,22 @@ async function checkMessages() {
       });
 
       console.log(`   📝 ${conversationMessages.length} message(s):`);
-      
-      for (const message of conversationMessages.slice(-5)) { // Show last 5 messages
-        const role = message.role === "user" ? "👤" : 
-                     message.role === "assistant" ? "🤖" : "⚙️";
-        const content = message.content.length > 80 
-          ? message.content.substring(0, 80) + "..."
-          : message.content;
-        
+
+      for (const message of conversationMessages.slice(-5)) {
+        // Show last 5 messages
+        const role =
+          message.role === "user"
+            ? "👤"
+            : message.role === "assistant"
+              ? "🤖"
+              : "⚙️";
+        const content =
+          message.content.length > 80
+            ? message.content.substring(0, 80) + "..."
+            : message.content;
+
         console.log(`     ${role} ${message.role}: ${content}`);
-        
+
         if (message.metadata?.source) {
           console.log(`       🏷️  Source: ${message.metadata.source}`);
         }
@@ -62,7 +71,6 @@ async function checkMessages() {
     }
 
     console.log("\n✅ Message check complete");
-    
   } catch (error) {
     console.error("❌ Error checking messages:", error);
     process.exit(1);
