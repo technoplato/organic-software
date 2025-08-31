@@ -89,7 +89,22 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
     const token = (await Notifications.getExpoPushTokenAsync(tokenOptions)).data;
     console.log('📱 Push token obtained:', token);
     return token;
-  } catch (error) {
+  } catch (error: any) {
+    // Check for specific entitlement error
+    if (error?.message?.includes('aps-environment')) {
+      console.warn('⚠️ Push notifications require a development build with proper entitlements.');
+      console.warn('📖 See mobile-app/PUSH_NOTIFICATIONS_SETUP.md for instructions.');
+      console.warn('🔧 Run: eas build --profile development --platform ios');
+      
+      // Still return the token if we got one (for testing purposes)
+      if (error?.message?.includes('ExponentPushToken')) {
+        const tokenMatch = error.message.match(/ExponentPushToken\[[^\]]+\]/);
+        if (tokenMatch) {
+          console.log('📱 Token obtained despite entitlement error:', tokenMatch[0]);
+          return tokenMatch[0];
+        }
+      }
+    }
     console.error('Error registering for push notifications:', error);
     return null;
   }
