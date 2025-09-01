@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 // import { BlurView } from "expo-blur";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+// Using InstantDB instead of AsyncStorage
 import { init, id } from "@instantdb/react-native";
 import {
   useEnhancedSpeechRecognition,
@@ -48,6 +48,7 @@ enum CommandAction {
   MODE_HYBRID = "MODE_HYBRID",
   START_LISTENING = "START_LISTENING",
   STOP_LISTENING = "STOP_LISTENING",
+  TOGGLE_AUTO_RESTART = "TOGGLE_AUTO_RESTART",
 }
 
 // Voice commands configuration
@@ -108,11 +109,22 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: number;
+  conversationId?: string;
   isStreaming?: boolean;
+}
+
+interface UserSetting {
+  id?: string;
+  textSize?: number;
+  lineSpacing?: number;
+  displayMode?: string;
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export default function MinimalConversationScreen() {
   const router = useRouter();
+  const navigation = useRouter();
   const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
   // State
@@ -123,7 +135,6 @@ export default function MinimalConversationScreen() {
   const [lineSpacing, setLineSpacing] = useState(1.5);
   const [showSettings, setShowSettings] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [currentTranscript, setCurrentTranscript] = useState("");
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
 
   // Animations
@@ -143,67 +154,90 @@ export default function MinimalConversationScreen() {
     isRecognizing,
     error: speechError,
     volumeLevel,
+    elapsedSeconds,
+    sessionStartTime,
+    autoRestart,
+    restartAttempts,
     start: startRecognition,
     stop: stopRecognition,
     reset: resetRecognition,
+    toggleAutoRestart,
   } = useEnhancedSpeechRecognition();
 
-  // Load settings from storage
+  // InstantDB queries for settings
+  const { data: settingsData } = db.useQuery({
+    userSettings: {},
+  });
+  
+  // Extract settings from InstantDB
+  const userSettings = (settingsData?.userSettings?.[0] || {}) as UserSetting;
+  
+  // Track if we've already started recognition
+  const hasStartedRef = useRef(false);
+
+  // Load settings from InstantDB
   useEffect(() => {
-    loadSettings();
-    // Start listening automatically
-    startRecognition();
-  }, []);
-
-  const loadSettings = async () => {
-    try {
-      const savedTextSize = await AsyncStorage.getItem("textSize");
-      const savedLineSpacing = await AsyncStorage.getItem("lineSpacing");
-      const savedMode = await AsyncStorage.getItem("displayMode");
-
-      if (savedTextSize) setTextSize(parseInt(savedTextSize));
-      if (savedLineSpacing) setLineSpacing(parseFloat(savedLineSpacing));
-      if (savedMode) setDisplayMode(savedMode as DisplayMode);
-    } catch (error) {
-      console.error("Failed to load settings:", error);
+    // Only log when settings actually change
+    if (Object.keys(userSettings).length > 0) {
+      console.log("[MinimalConversation] Loading settings:", userSettings);
+      
+      if (userSettings.textSize) setTextSize(userSettings.textSize);
+      if (userSettings.lineSpacing) setLineSpacing(userSettings.lineSpacing);
+      if (userSettings.displayMode) setDisplayMode(userSettings.displayMode as DisplayMode);
     }
-  };
-
+    
+    // Start listening automatically, but only once
+    if (!hasStartedRef.current) {
+      console.log("[MinimalConversation] Starting initial recognition");
+      startRecognition();
+      hasStartedRef.current = true;
+    }
+  }, [userSettings]);
+  
   const saveSettings = async () => {
     try {
-      await AsyncStorage.setItem("textSize", textSize.toString());
-      await AsyncStorage.setItem("lineSpacing", lineSpacing.toString());
-      await AsyncStorage.setItem("displayMode", displayMode);
+      const settingsId = userSettings.id || id();
+      console.log("[MinimalConversation] Saving settings:", { textSize, lineSpacing, displayMode });
+      
+      await db.transact([
+        db.tx.userSettings[settingsId].update({
+          textSize,
+          lineSpacing,
+          displayMode,
+          updatedAt: Date.now(),
+          ...(userSettings.id ? {} : { createdAt: Date.now() }),
+        }),
+      ]);
     } catch (error) {
-      console.error("Failed to save settings:", error);
+      console.error("[MinimalConversation] Failed to save settings:", error);
     }
   };
 
-  // Process voice commands
+  // Process voice commands from the latest text
   useEffect(() => {
     if (!isRecognizing) return;
-
-    const fullText = [...segments.map((s) => s.text), interimTranscript]
-      .join(" ")
-      .toLowerCase();
-
-    // Update current transcript
-    setCurrentTranscript(fullText);
-
-    // Check for voice commands
-    detectAndExecuteCommand(fullText);
-  }, [segments, interimTranscript]);
+    
+    // Check voice commands only on the latest text (interim or last segment)
+    const latestText = interimTranscript || (segments.length > 0 ? segments[segments.length - 1].text : "");
+    
+    if (latestText) {
+      // Check for voice commands (use lowercase for case-insensitive matching)
+      detectAndExecuteCommand(latestText.toLowerCase());
+    }
+  }, [segments, interimTranscript, isRecognizing]);
 
   const detectAndExecuteCommand = (text: string) => {
     // Avoid processing the same command multiple times
     if (text === lastProcessedCommandRef.current) return;
-
+    
     for (const command of VOICE_COMMANDS) {
       for (const trigger of command.triggers) {
         if (text.includes(trigger)) {
+          console.log(`[MinimalConversation] Command detected: "${trigger}" -> ${command.action}`);
+          
           lastProcessedCommandRef.current = text;
           executeCommand(command.action);
-
+          
           // Visual feedback
           Animated.sequence([
             Animated.timing(pulseAnim, {
@@ -217,7 +251,7 @@ export default function MinimalConversationScreen() {
               useNativeDriver: true,
             }),
           ]).start();
-
+          
           break;
         }
       }
@@ -237,16 +271,11 @@ export default function MinimalConversationScreen() {
         break;
 
       case CommandAction.SEND_MESSAGE:
-        if (currentTranscript.trim()) {
-          sendMessage(currentTranscript.trim());
-          setCurrentTranscript("");
-          resetRecognition();
-        }
+        sendMessage();
         break;
 
       case CommandAction.CLEAR_CONVERSATION:
         setMessages([]);
-        setCurrentTranscript("");
         resetRecognition();
         break;
 
@@ -283,34 +312,52 @@ export default function MinimalConversationScreen() {
     setTimeout(() => setIsProcessingCommand(false), 500);
   };
 
-  const sendMessage = async (content: string) => {
+  const sendMessage = async () => {
+    // Combine all segments and interim text for sending
+    const fullTranscript = [
+      ...segments.map(s => s.text),
+      interimTranscript
+    ].filter(Boolean).join(" ").trim();
+    
+    if (!fullTranscript) return;
+    
     const messageId = id();
+    const conversationId = "minimal-conversation"; // Use consistent conversation ID
+    const timestamp = Date.now();
+    
+    console.log(`[MinimalConversation] Sending message: "${fullTranscript.substring(0, 30)}${fullTranscript.length > 30 ? '...' : ''}"`);
+    
     const newMessage: Message = {
       id: messageId,
       role: "user",
-      content,
-      timestamp: Date.now(),
+      content: fullTranscript,
+      timestamp,
+      conversationId,
     };
-
+    
     setMessages((prev) => [...prev, newMessage]);
-
+    
     // Send to InstantDB for Claude processing
     try {
       await db.transact([
         db.tx.messages[messageId].update({
-          conversationId: id(),
+          conversationId,
           role: "user",
-          content,
-          timestamp: Date.now(),
+          content: fullTranscript,
+          timestamp,
           status: "pending",
         }),
       ]);
     } catch (error) {
-      console.error("Failed to send message:", error);
+      console.error("[MinimalConversation] Failed to send message:", error);
     }
+    
+    // Reset after sending
+    resetRecognition();
   };
 
   const toggleSettings = (show: boolean) => {
+    console.log(`[MinimalConversation] ${show ? 'Showing' : 'Hiding'} settings panel`);
     setShowSettings(show);
     Animated.timing(settingsSlideAnim, {
       toValue: show ? 0 : screenHeight,
@@ -326,8 +373,10 @@ export default function MinimalConversationScreen() {
       onPanResponderGrant: () => {
         // Tap anywhere to toggle listening
         if (isRecognizing) {
+          console.log("[MinimalConversation] Stopping recognition on tap");
           stopRecognition();
         } else {
+          console.log("[MinimalConversation] Starting recognition on tap");
           startRecognition();
         }
       },
@@ -346,43 +395,95 @@ export default function MinimalConversationScreen() {
     }
   };
 
-  const renderTranscriptionView = () => (
-    <View style={styles.transcriptionContainer}>
-      <ScrollView
-        ref={scrollViewRef}
-        contentContainerStyle={styles.transcriptionContent}
-        showsVerticalScrollIndicator={false}
-        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd()}
-      >
-        <Text
-          style={[
-            styles.transcriptionText,
-            {
-              fontSize: textSize,
-              lineHeight: textSize * lineSpacing,
-            },
-          ]}
-        >
-          {currentTranscript ||
-            (isRecognizing ? "Listening..." : "Tap anywhere to start")}
-        </Text>
+  const renderTranscriptionView = () => {
+    const formatTimestamp = (seconds: number) => {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs.toString().padStart(2, "0")}`;
+    };
 
-        {interimTranscript && (
-          <Text
-            style={[
-              styles.interimText,
-              {
-                fontSize: textSize,
-                lineHeight: textSize * lineSpacing,
-              },
-            ]}
-          >
-            {interimTranscript}
-          </Text>
-        )}
-      </ScrollView>
-    </View>
-  );
+    const currentTime = sessionStartTime
+      ? Math.floor((Date.now() - sessionStartTime) / 1000)
+      : 0;
+
+    return (
+      <View style={styles.transcriptionContainer}>
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={styles.transcriptionContent}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd()}
+        >
+          {segments.length === 0 && !interimTranscript && (
+            <Text style={[styles.transcriptionText, { fontSize: textSize, lineHeight: textSize * lineSpacing }]}>
+              {isRecognizing ? "Listening..." : "Tap anywhere to start"}
+            </Text>
+          )}
+          
+          {/* Display segments */}
+          {segments.map((segment) => (
+            <View key={segment.id} style={styles.segmentContainer}>
+              <Text style={styles.segmentTimestamp}>
+                {formatTimestamp(segment.timestamp)}
+              </Text>
+              <Text
+                style={[
+                  styles.transcriptionText,
+                  {
+                    fontSize: textSize,
+                    lineHeight: textSize * lineSpacing,
+                  },
+                ]}
+              >
+                {segment.text}
+              </Text>
+            </View>
+          ))}
+          
+          {/* Display interim transcript with current timestamp */}
+          {interimTranscript && (
+            <View style={styles.segmentContainer}>
+              <Text style={styles.segmentTimestamp}>
+                {formatTimestamp(currentTime)}
+              </Text>
+              <Text
+                style={[
+                  styles.transcriptionText,
+                  styles.interimText,
+                  {
+                    fontSize: textSize,
+                    lineHeight: textSize * lineSpacing,
+                  },
+                ]}
+              >
+                {interimTranscript}
+              </Text>
+            </View>
+          )}
+          
+          {/* Error display (only show critical errors) */}
+          {speechError && !speechError.includes('no-speech') && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>
+                Error: {speechError}
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+        
+        {/* Done button */}
+        <TouchableOpacity
+          style={styles.doneButton}
+          onPress={() => {
+            stopRecognition();
+            navigation.back();
+          }}
+        >
+          <Text style={styles.doneButtonText}>Done</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   const renderConversationView = () => (
     <View style={styles.conversationContainer}>
@@ -408,7 +509,8 @@ export default function MinimalConversationScreen() {
           </View>
         ))}
 
-        {currentTranscript && (
+        {/* Show current recording as interim bubble */}
+        {(segments.length > 0 || interimTranscript) && (
           <View style={styles.currentTranscriptBubble}>
             <Text
               style={[
@@ -416,7 +518,7 @@ export default function MinimalConversationScreen() {
                 { fontSize: textSize * 0.75 },
               ]}
             >
-              {currentTranscript}
+              {[...segments.map(s => s.text), interimTranscript].filter(Boolean).join(" ")}
             </Text>
           </View>
         )}
@@ -531,7 +633,7 @@ export default function MinimalConversationScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar hidden />
       <Animated.View
         style={[styles.mainContainer, { transform: [{ scale: pulseAnim }] }]}
@@ -539,17 +641,7 @@ export default function MinimalConversationScreen() {
       >
         {renderContent()}
 
-        {/* Status indicator */}
-        {isRecognizing && (
-          <View style={styles.statusIndicator}>
-            <View
-              style={[
-                styles.recordingDot,
-                { opacity: volumeLevel * 0.1 + 0.3 },
-              ]}
-            />
-          </View>
-        )}
+        {/* Removed recording indicator as requested */}
 
         {/* Command feedback */}
         {isProcessingCommand && (
@@ -560,7 +652,7 @@ export default function MinimalConversationScreen() {
       </Animated.View>
 
       {showSettings && renderSettings()}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -586,12 +678,69 @@ const styles = StyleSheet.create({
     color: "#000000",
     textAlign: "left",
     fontWeight: "400",
+    fontSize: 24, // Default size
+    lineHeight: 36, // Default line height
+  },
+  segmentContainer: {
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  segmentTimestamp: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "600",
+    marginBottom: 4,
+    fontVariant: ["tabular-nums"],
   },
   interimText: {
-    color: "#666666",
-    textAlign: "left",
     fontStyle: "italic",
-    marginTop: 10,
+    color: "#6B7280",
+  },
+  doneButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    zIndex: 1000,
+  },
+  doneButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  timerContainer: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 15,
+  },
+  timerText: {
+    color: '#666',
+    fontSize: 14,
+    fontVariant: ['tabular-nums'], // Use monospace numbers for timer
+  },
+  errorContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(244,67,54,0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 15,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#F44336',
+    textAlign: 'center',
   },
 
   // Conversation View
@@ -735,21 +884,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // Status Indicators
-  statusIndicator: {
-    position: "absolute",
-    top: 50,
-    right: 20,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  recordingDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#FF3B30",
-  },
+  // Command feedback
   commandFeedback: {
     position: "absolute",
     top: "50%",

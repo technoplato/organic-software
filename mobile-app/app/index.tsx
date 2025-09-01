@@ -98,6 +98,11 @@ export default function HomePage() {
       color: "#EC4899",
     },
     {
+      title: "🔤 Minimal Conversation",
+      route: "/minimal-conversation",
+      color: "#8B5CF6",
+    },
+    {
       title: "👋 Hello Screen",
       route: "/hello",
       color: "#06B6D4",

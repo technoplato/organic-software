@@ -8,7 +8,9 @@
     "supervisor:background": "./scripts/deployment/start-supervisor.sh",
     "supervisor:stop": "./scripts/deployment/stop-supervisor.sh",
     "supervisor:logs": "./scripts/debug/supervisor-logs.sh",
+    "supervisor:logs:follow": "tail -f logs/supervisor.log",
     "supervisor:status": "ps aux | grep -E '(supervisor|instant-message-handler|expo)' | grep -v grep || echo 'No supervisor processes running'",
+    "supervisor:restart": "npm run supervisor:stop && npm run supervisor:background",
     "test:push": "npx tsx tests/integration/test-push-notification.ts",
     "deps-mobile": "SUPERVISOR_DETACH_BUNDLER=1 npx tsx server/supervisor.ts deps-mobile",
     "restart-bundler": "npx tsx server/supervisor.ts restart-bundler",
@@ -26,7 +28,8 @@
   "devDependencies": {
     "@types/bun": "latest",
     "@types/callsites": "^2.0.0",
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.0",
+    "ts-node": "^10.9.2"
   },
   "peerDependencies": {
     "typescript": "^5"

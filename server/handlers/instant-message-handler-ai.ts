@@ -8,7 +8,7 @@ import { config } from "dotenv";
 import { logger } from "../lib/logger";
 
 // Load environment variables
-config({ path: './config/.env' });
+config({ path: "./config/.env" });
 
 const APP_ID = process.env.INSTANTDB_APP_ID;
 
@@ -127,6 +127,13 @@ class AIMessageHandler {
       const startTime = Date.now();
       let fullResponse = "";
       const chunks: string[] = [];
+
+      console.log(
+        "messaging keeps infinite looping, not sending to ai at all right now"
+      );
+      await this.updateMessage(message.id, { status: "completed" });
+      this.processedMessageIds.add(message.id);
+      return;
 
       const { textStream } = await streamText({
         model: litellm("claude-3-7-sonnet"),

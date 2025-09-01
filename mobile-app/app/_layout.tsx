@@ -22,6 +22,18 @@ export default function RootLayout() {
       }}
     >
       <Tabs.Screen
+        name="minimal-conversation"
+        options={{
+          // href: null, // Hide from tabs
+          headerShown: false, // Hide header for full-screen
+          tabBarStyle: { display: "none" }, // Hide tab bar
+          title: "Minimal Conversation",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="color-wand-sharp" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="index"
         options={{
           title: "Home",
@@ -30,7 +42,7 @@ export default function RootLayout() {
           ),
         }}
       />
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="conversations"
         options={{
           title: "Chat",
@@ -38,7 +50,7 @@ export default function RootLayout() {
             <Ionicons name="chatbubbles" size={size} color={color} />
           ),
         }}
-      />
+      /> */}
       <Tabs.Screen
         name="speech"
         options={{
@@ -69,31 +81,29 @@ export default function RootLayout() {
 
       {/* Hidden screens - accessible via navigation but not in tabs */}
       <Tabs.Screen
+        href={null}
         name="speech-demo"
         options={{
           href: null, // Hide from tabs
           title: "Enhanced Speech Demo",
         }}
       />
+
       <Tabs.Screen
-        name="hello"
-        options={{
-          href: null, // Hide from tabs
-          title: "Hello",
-        }}
-      />
-      <Tabs.Screen
-        name="demo"
-        options={{
-          href: null, // Hide from tabs
-          title: "Demo",
-        }}
-      />
-      <Tabs.Screen
+        href={null}
         name="logs"
         options={{
           href: null, // Hide from tabs
           title: "Logs",
+        }}
+      />
+
+      <Tabs.Screen
+        href={null}
+        name="settings"
+        options={{
+          href: null, // Hide from tabs
+          title: "Settings",
         }}
       />
     </Tabs>
