@@ -5,55 +5,74 @@ import {
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
+  Linking,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import useStyles from "../lib/useStyles";
+import * as Application from "expo-application";
+import * as Device from "expo-device";
 
 export default function MoreScreen() {
   const router = useRouter();
   const { styles, palette } = useStyles();
 
-  const toolsAndDemos = [
+  const menuItems = [
     {
-      title: "✨ Enhanced Speech Demo",
-      subtitle: "Advanced speech recognition features",
-      route: "/speech-demo",
-      color: "#EC4899",
-      description:
-        "Explore enhanced speech recognition capabilities with advanced features and settings.",
+      title: "⚙️ Voice Settings",
+      subtitle: "Configure trigger keywords and voice recognition",
+      onPress: () => router.push("/settings"),
     },
     {
-      title: "👋 Hello Screen",
-      subtitle: "Simple greeting interface",
-      route: "/hello",
-      color: "#06B6D4",
-      description:
-        "A basic hello world screen for testing navigation and basic functionality.",
+      title: "🎙️ Speech Demo",
+      subtitle: "Test advanced speech recognition features",
+      onPress: () => router.push("/speech-demo"),
     },
     {
-      title: "📊 System Logs",
-      subtitle: "View application logs",
-      route: "/logs",
-      color: "#84CC16",
-      description:
-        "Monitor system logs and debug information from the application.",
+      title: "💬 Conversations",
+      subtitle: "Chat with AI using voice or text",
+      onPress: () => router.push("/conversations"),
     },
     {
-      title: "🎭 Demo Screen",
-      subtitle: "General demo interface",
-      route: "/demo",
-      color: "#F59E0B",
-      description:
-        "A general-purpose demo screen for testing various features and components.",
+      title: "📝 Issues",
+      subtitle: "View and manage project issues",
+      onPress: () => router.push("/issues"),
+    },
+    {
+      title: "📊 Logs",
+      subtitle: "View system logs and debugging info",
+      onPress: () => router.push("/logs"),
+    },
+    {
+      title: "🎨 Demo",
+      subtitle: "Interactive UI components demo",
+      onPress: () => router.push("/demo"),
+    },
+    {
+      title: "📖 Documentation",
+      subtitle: "View project documentation",
+      onPress: () => {
+        Alert.alert(
+          "Documentation",
+          "Open project documentation in browser?",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Open",
+              onPress: () => Linking.openURL("https://github.com/your-repo/docs"),
+            },
+          ]
+        );
+      },
     },
   ];
 
-  const systemInfo = [
-    { label: "App Version", value: "1.0.0" },
-    { label: "Build Type", value: "iOS Development" },
-    { label: "Expo Router", value: "Enabled" },
-    { label: "InstantDB", value: "Connected" },
-    { label: "Speech Recognition", value: "Available" },
+  const deviceInfo = [
+    { label: "Device", value: Device.deviceName || "Unknown" },
+    { label: "Model", value: Device.modelName || "Unknown" },
+    { label: "OS", value: `${Device.osName} ${Device.osVersion}` },
+    { label: "App Version", value: Application.nativeApplicationVersion || "1.0.0" },
+    { label: "Build", value: Application.nativeBuildVersion || "1" },
   ];
 
   return (
@@ -61,162 +80,59 @@ export default function MoreScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <View style={[styles.alignCenter, styles.marginBottom]}>
-          <Text style={styles.title}>🔧 More Tools</Text>
-          <Text style={styles.subtitle}>
-            Additional features and system information
-          </Text>
+          <Text style={styles.title}>📱 More</Text>
+          <Text style={styles.subtitle}>Settings & Information</Text>
         </View>
 
-        {/* Tools and Demos */}
+        {/* Menu Items */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tools & Demos</Text>
-          <View style={{ gap: 16 }}>
-            {toolsAndDemos.map((tool, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.card,
-                  { borderLeftWidth: 4, borderLeftColor: tool.color },
-                ]}
-                onPress={() => router.push(tool.route as any)}
-              >
-                <View style={styles.cardHeader}>
-                  <Text style={styles.cardTitle}>{tool.title}</Text>
-                  <View
-                    style={[
-                      {
-                        width: 12,
-                        height: 12,
-                        borderRadius: 6,
-                        backgroundColor: tool.color,
-                      },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.cardSubtitle}>{tool.subtitle}</Text>
-                <Text style={styles.cardDescription}>{tool.description}</Text>
-                <View style={[styles.alignCenter, { alignItems: "flex-end" }]}>
-                  <Text
-                    style={[
-                      {
-                        fontSize: 12,
-                        color: palette.textTertiary,
-                        fontStyle: "italic",
-                      },
-                    ]}
-                  >
-                    Tap to open →
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <Text style={styles.sectionTitle}>Menu</Text>
+          {menuItems.map((item, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.card,
+                {
+                  marginBottom: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingVertical: 16,
+                },
+              ]}
+              onPress={item.onPress}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: "600", color: palette.text, marginBottom: 4 }}>
+                  {item.title}
+                </Text>
+                <Text style={{ fontSize: 14, color: palette.textSecondary }}>
+                  {item.subtitle}
+                </Text>
+              </View>
+              <Text style={{ fontSize: 20, color: palette.textTertiary }}>›</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        {/* Quick Actions */}
+        {/* Device Information */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.grid}>
-            <TouchableOpacity
-              style={[
-                styles.button,
-                { backgroundColor: palette.accent },
-                styles.gridItemHalf,
-                styles.alignCenter,
-                styles.justifyCenter,
-                { paddingVertical: 16 },
-              ]}
-              onPress={() => router.push("/")}
-            >
-              <Text style={{ fontSize: 24, marginBottom: 8 }}>🏠</Text>
-              <Text style={[styles.buttonText, { fontSize: 12 }]}>Home</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.button,
-                { backgroundColor: palette.success },
-                styles.gridItemHalf,
-                styles.alignCenter,
-                styles.justifyCenter,
-                { paddingVertical: 16 },
-              ]}
-              onPress={() => router.push("/conversations")}
-            >
-              <Text style={{ fontSize: 24, marginBottom: 8 }}>💬</Text>
-              <Text style={[styles.buttonText, { fontSize: 12 }]}>Chat</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.button,
-                { backgroundColor: palette.warning },
-                styles.gridItemHalf,
-                styles.alignCenter,
-                styles.justifyCenter,
-                { paddingVertical: 16 },
-              ]}
-              onPress={() => router.push("/speech")}
-            >
-              <Text style={{ fontSize: 24, marginBottom: 8 }}>🎙️</Text>
-              <Text style={[styles.buttonText, { fontSize: 12 }]}>Speech</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.button,
-                { backgroundColor: palette.error },
-                styles.gridItemHalf,
-                styles.alignCenter,
-                styles.justifyCenter,
-                { paddingVertical: 16 },
-              ]}
-              onPress={() => router.push("/issues")}
-            >
-              <Text style={{ fontSize: 24, marginBottom: 8 }}>🐛</Text>
-              <Text style={[styles.buttonText, { fontSize: 12 }]}>Issues</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* System Information */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>System Information</Text>
+          <Text style={styles.sectionTitle}>Device Information</Text>
           <View style={styles.card}>
-            {systemInfo.map((info, index) => (
+            {deviceInfo.map((info, index) => (
               <View
                 key={index}
-                style={[
-                  styles.flexRow,
-                  styles.justifyBetween,
-                  styles.alignCenter,
-                  {
-                    paddingVertical: 12,
-                    borderBottomWidth: index < systemInfo.length - 1 ? 1 : 0,
-                    borderBottomColor: palette.border,
-                  },
-                ]}
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  paddingVertical: 8,
+                  borderBottomWidth: index < deviceInfo.length - 1 ? 1 : 0,
+                  borderBottomColor: palette.border,
+                }}
               >
-                <Text
-                  style={[
-                    {
-                      fontSize: 14,
-                      color: palette.textSecondary,
-                      fontWeight: "500",
-                    },
-                  ]}
-                >
+                <Text style={{ fontSize: 14, color: palette.textSecondary }}>
                   {info.label}
                 </Text>
-                <Text
-                  style={[
-                    {
-                      fontSize: 14,
-                      color: palette.textPrimary,
-                      fontWeight: "600",
-                    },
-                  ]}
-                >
+                <Text style={{ fontSize: 14, color: palette.text, fontWeight: "500" }}>
                   {info.value}
                 </Text>
               </View>
@@ -224,115 +140,22 @@ export default function MoreScreen() {
           </View>
         </View>
 
-        {/* App Features */}
+        {/* About Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>App Features</Text>
-          <View style={styles.grid}>
-            {[
-              {
-                icon: "🤖",
-                title: "Claude Integration",
-                description:
-                  "Real-time communication with Claude via InstantDB",
-              },
-              {
-                icon: "🎙️",
-                title: "Speech Recognition",
-                description: "Advanced voice input with live transcription",
-              },
-              {
-                icon: "📱",
-                title: "Push Notifications",
-                description: "Real-time notifications for system events",
-              },
-              {
-                icon: "🔄",
-                title: "Live Sync",
-                description: "Automatic synchronization with host system",
-              },
-            ].map((feature, index) => (
-              <View key={index} style={[styles.card, styles.gridItemHalf]}>
-                <Text
-                  style={[
-                    { fontSize: 32, marginBottom: 12, textAlign: "center" },
-                  ]}
-                >
-                  {feature.icon}
-                </Text>
-                <Text
-                  style={[
-                    {
-                      fontSize: 16,
-                      fontWeight: "600",
-                      color: palette.textPrimary,
-                      marginBottom: 8,
-                      textAlign: "center",
-                    },
-                  ]}
-                >
-                  {feature.title}
-                </Text>
-                <Text
-                  style={[
-                    {
-                      fontSize: 12,
-                      color: palette.textSecondary,
-                      lineHeight: 16,
-                      textAlign: "center",
-                    },
-                  ]}
-                >
-                  {feature.description}
-                </Text>
-              </View>
-            ))}
+          <Text style={styles.sectionTitle}>About</Text>
+          <View style={[styles.card, { backgroundColor: palette.info + "10" }]}>
+            <Text style={{ fontSize: 14, color: palette.text, lineHeight: 20 }}>
+              <Text style={{ fontWeight: "600" }}>Organic Software</Text>
+              {"\n"}An AI-powered development assistant that bridges mobile and desktop environments.
+              {"\n\n"}Built with React Native, Expo, InstantDB, and Claude AI.
+            </Text>
           </View>
         </View>
 
         {/* Footer */}
-        <View
-          style={[
-            styles.alignCenter,
-            styles.marginTop,
-            {
-              paddingTop: 30,
-              borderTopWidth: 1,
-              borderTopColor: palette.border,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              {
-                fontSize: 20,
-                fontWeight: "bold",
-                color: palette.textPrimary,
-                marginBottom: 8,
-              },
-            ]}
-          >
-            🤖 Organic Software
-          </Text>
-          <Text
-            style={[
-              styles.textCenter,
-              {
-                fontSize: 14,
-                color: palette.textSecondary,
-                lineHeight: 20,
-                marginBottom: 8,
-              },
-            ]}
-          >
-            An experimental project exploring AI-assisted development workflows
-          </Text>
-          <Text
-            style={[
-              styles.textCenter,
-              { fontSize: 12, color: palette.textTertiary },
-            ]}
-          >
-            Version 1.0.0 • Built with Expo & React Native
+        <View style={[styles.alignCenter, { marginTop: 20, marginBottom: 40 }]}>
+          <Text style={{ fontSize: 12, color: palette.textTertiary }}>
+            Made with ❤️ by the Organic Software Team
           </Text>
         </View>
       </ScrollView>

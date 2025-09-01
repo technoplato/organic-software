@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,12 +10,21 @@ import {
   ActivityIndicator,
   Platform,
   TextInput,
+  KeyboardAvoidingView,
+  Keyboard,
+  Animated,
+  Dimensions,
+  StyleSheet,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { init, id } from "@instantdb/react-native";
-import useStyles from "../lib/useStyles";
+import {
+  useEnhancedSpeechRecognition,
+  RecognitionState,
+} from "../lib/enhanced-speech-recognition";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Configure notification handler
 Notifications.setNotificationHandler({
@@ -35,32 +45,29 @@ const db = init({
 });
 
 // Define types
-interface Conversation {
-  id: string;
-  userId: string;
-  title: string;
-  status: string;
-  claudeSessionId?: string;
-  createdAt?: number;
-  updatedAt?: number;
-}
-
 interface Message {
   id: string;
   conversationId: string;
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: number;
-  status?: "pending" | "processing" | "completed" | "error";
+  status?: "pending" | "processing" | "completed" | "error" | "streaming";
   metadata?: Record<string, any>;
+  isStreaming?: boolean;
+  streamChunks?: string[];
+  finalContent?: string;
 }
 
 type ConversationState =
   | "idle"
   | "sending"
-  | "waiting_for_claude"
-  | "claude_responding"
-  | "error";
+  | "waiting_for_response"
+  | "responding"
+  | "error"
+  | "voice_recording";
+
+// Default trigger keywords
+const DEFAULT_TRIGGER_KEYWORDS = ["send", "done", "submit", "send message", "send it"];
 
 // Push notification registration helper
 async function registerForPushNotificationsAsync(): Promise<string | null> {
@@ -87,12 +94,6 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
       Constants?.expoConfig?.extra?.eas?.projectId ??
       Constants?.easConfig?.projectId;
 
-    if (!projectId) {
-      console.warn(
-        "No project ID found. Using a fallback project ID for testing.",
-      );
-    }
-
     const tokenOptions: Notifications.ExpoPushTokenOptions = {
       development: Platform.OS === "ios",
       ...(projectId && { projectId }),
@@ -100,31 +101,8 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
 
     const token = (await Notifications.getExpoPushTokenAsync(tokenOptions))
       .data;
-    console.log("📱 Push token obtained:", token);
     return token;
   } catch (error: any) {
-    // Check for specific entitlement error
-    if (error?.message?.includes("aps-environment")) {
-      console.warn(
-        "⚠️ Push notifications require a development build with proper entitlements.",
-      );
-      console.warn(
-        "📖 See mobile-app/PUSH_NOTIFICATIONS_SETUP.md for instructions.",
-      );
-      console.warn("🔧 Run: eas build --profile development --platform ios");
-
-      // Still return the token if we got one (for testing purposes)
-      if (error?.message?.includes("ExponentPushToken")) {
-        const tokenMatch = error.message.match(/ExponentPushToken\[[^\]]+\]/);
-        if (tokenMatch) {
-          console.log(
-            "📱 Token obtained despite entitlement error:",
-            tokenMatch[0],
-          );
-          return tokenMatch[0];
-        }
-      }
-    }
     console.error("Error registering for push notifications:", error);
     return null;
   }
@@ -132,18 +110,34 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
 
 export default function ConversationsScreen() {
   const router = useRouter();
-  const { styles, palette } = useStyles();
   const { prefillText } = useLocalSearchParams();
   const [inputText, setInputText] = useState("");
   const [conversationState, setConversationState] =
     useState<ConversationState>("idle");
   const [pushToken, setPushToken] = useState<string | null>(null);
+  const [isVoiceMode, setIsVoiceMode] = useState(false);
+  const [triggerKeywords, setTriggerKeywords] = useState<string[]>(DEFAULT_TRIGGER_KEYWORDS);
+  const [textInputHeight, setTextInputHeight] = useState(56);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const { height: screenHeight } = Dimensions.get('window');
+  const maxInputHeight = Math.min(200, screenHeight * 0.3);
+  const [showThoughts, setShowThoughts] = useState(false);
+
+  // Enhanced speech recognition
+  const {
+    state: speechState,
+    segments,
+    interimTranscript,
+    isRecognizing,
+    error: speechError,
+    volumeLevel,
+    start: startRecognition,
+    stop: stopRecognition,
+    reset: resetRecognition,
+  } = useEnhancedSpeechRecognition();
 
   // InstantDB queries
-  const { data: conversations, isLoading: conversationsLoading } = db.useQuery({
-    conversations: {},
-  });
-
   const { data: messages, isLoading: messagesLoading } = db.useQuery({
     messages: {},
   });
@@ -156,15 +150,60 @@ export default function ConversationsScreen() {
   const heartbeatsArray = heartbeats?.heartbeats || [];
   const messagesArray = messages?.messages || [];
 
+  // Load trigger keywords from storage
   useEffect(() => {
-    console.log("🔔 Starting push notification registration...");
+    AsyncStorage.getItem('triggerKeywords').then((stored) => {
+      if (stored) {
+        try {
+          setTriggerKeywords(JSON.parse(stored));
+        } catch (e) {
+          console.error("Failed to parse stored keywords:", e);
+        }
+      }
+    });
+  }, []);
+
+  // Monitor speech recognition for trigger keywords
+  useEffect(() => {
+    if (!isVoiceMode || !isRecognizing) return;
+
+    // Combine segments and interim transcript for full text
+    const fullText = [
+      ...segments.map(s => s.text),
+      interimTranscript
+    ].join(' ').toLowerCase();
+
+    // Check for trigger keywords
+    const triggered = triggerKeywords.some(keyword => 
+      fullText.includes(keyword.toLowerCase())
+    );
+
+    if (triggered && fullText.trim().length > 0) {
+      // Remove trigger keyword from text
+      let cleanedText = fullText;
+      triggerKeywords.forEach(keyword => {
+        const regex = new RegExp(`\\b${keyword.toLowerCase()}\\b`, 'gi');
+        cleanedText = cleanedText.replace(regex, '').trim();
+      });
+
+      if (cleanedText.length > 0) {
+        setInputText(cleanedText);
+        stopRecognition();
+        setIsVoiceMode(false);
+        // Auto-send the message
+        setTimeout(() => sendMessage(cleanedText), 100);
+      }
+    } else if (fullText.trim().length > 0) {
+      // Update input text with current transcript
+      setInputText(fullText.trim());
+    }
+  }, [segments, interimTranscript, isVoiceMode, isRecognizing, triggerKeywords]);
+
+  useEffect(() => {
     registerForPushNotificationsAsync().then(async (token) => {
       setPushToken(token);
-      console.log("🔔 Finished push notification registration. Token:", token);
-
       if (token) {
         try {
-          // Save push token to database
           const deviceDbId = id();
           await db.transact([
             db.tx.devices[deviceDbId].update({
@@ -175,27 +214,25 @@ export default function ConversationsScreen() {
               createdAt: Date.now(),
             }),
           ]);
-          console.log("✅ Push token saved to database:", token);
         } catch (error) {
-          console.error("❌ Failed to save push token to database:", error);
+          console.error("Failed to save push token:", error);
         }
       }
     });
 
-    // Handle prefilled text from speech recognition
-    console.log("📝 prefillText value:", prefillText);
+    // Handle prefilled text
     if (prefillText && typeof prefillText === "string") {
       setInputText(prefillText);
     }
   }, [prefillText]);
 
-  const sendMessage = async () => {
-    if (!inputText.trim()) return;
+  const sendMessage = async (messageText?: string) => {
+    const textToSend = messageText || inputText.trim();
+    if (!textToSend) return;
 
     setConversationState("sending");
 
     try {
-      // Create a new message in InstantDB
       const messageId = id();
       const conversationId = id();
 
@@ -203,16 +240,16 @@ export default function ConversationsScreen() {
         db.tx.messages[messageId].update({
           conversationId,
           role: "user",
-          content: inputText.trim(),
+          content: textToSend,
           timestamp: Date.now(),
           status: "pending",
         }),
       ]);
 
       setInputText("");
-      setConversationState("waiting_for_claude");
-
-      // The host application will pick up this message and respond
+      setConversationState("waiting_for_response");
+      setTextInputHeight(56);
+      scrollViewRef.current?.scrollToEnd({ animated: true });
     } catch (error) {
       console.error("Error sending message:", error);
       setConversationState("error");
@@ -220,253 +257,351 @@ export default function ConversationsScreen() {
     }
   };
 
+  const toggleVoiceMode = async () => {
+    if (isVoiceMode) {
+      stopRecognition();
+      setIsVoiceMode(false);
+      setConversationState("idle");
+    } else {
+      Keyboard.dismiss();
+      setIsVoiceMode(true);
+      setConversationState("voice_recording");
+      startRecognition();
+    }
+  };
+
+  const handleContentSizeChange = (event: any) => {
+    const newHeight = Math.min(event.nativeEvent.contentSize.height + 20, maxInputHeight);
+    setTextInputHeight(Math.max(56, newHeight));
+  };
+
+  // Monitor for streaming messages
+  useEffect(() => {
+    const streamingMessages = messagesArray.filter((m: any) => m.isStreaming);
+    if (streamingMessages.length > 0) {
+      setConversationState("responding");
+    } else if (conversationState === "responding") {
+      setConversationState("idle");
+    }
+  }, [messagesArray]);
+
+  // Render message content
+  const renderMessageContent = (message: any) => {
+    if (message.isStreaming && message.streamChunks) {
+      return message.streamChunks.join('');
+    }
+    return message.finalContent || message.content;
+  };
+
+  // Sort messages by timestamp
+  const sortedMessages = [...messagesArray]
+    .sort((a: any, b: any) => a.timestamp - b.timestamp);
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingView 
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
         {/* Header */}
-        <View style={[styles.alignCenter, styles.marginBottom]}>
-          <Text style={styles.title}>💬 Conversations</Text>
-          <Text style={styles.subtitle}>Chat with Claude via InstantDB</Text>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.menuButton}>
+            <Text style={styles.menuIcon}>☰</Text>
+          </TouchableOpacity>
+          <View style={styles.headerCenter} />
+          <TouchableOpacity onPress={() => router.push('/settings')} style={styles.settingsButton}>
+            <Text style={styles.settingsIcon}>⚙</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Host Status */}
-        <View style={styles.section}>
-          <Text style={styles.sectionSubtitle}>Host Status</Text>
-          <View style={styles.card}>
-            <View style={styles.statusIndicator}>
-              <View
-                style={[
-                  styles.statusDot,
-                  {
-                    backgroundColor:
-                      heartbeatsArray.length > 0
-                        ? palette.success
-                        : palette.error,
-                  },
-                ]}
-              />
-              <Text style={styles.statusText}>
-                {heartbeatsArray.length > 0 ? "Host Online" : "Host Offline"}
-              </Text>
-            </View>
-            {pushToken && (
-              <Text
-                style={[
-                  { fontSize: 12, color: palette.success, marginBottom: 4 },
-                ]}
-              >
-                📱 Push notifications ready
-              </Text>
-            )}
-            {heartbeatsArray.length > 0 && (
-              <Text style={[{ fontSize: 12, color: palette.textSecondary }]}>
-                Last heartbeat: {new Date().toLocaleTimeString()}
-              </Text>
-            )}
-          </View>
-        </View>
-
-        {/* Quick Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionSubtitle}>Quick Actions</Text>
-          <View style={[styles.flexRow, { gap: 12 }]}>
-            <TouchableOpacity
-              style={[styles.button, styles.buttonPrimary, styles.flex1]}
-              onPress={() => router.push("/speech")}
-            >
-              <Text style={styles.buttonText}>🎙️ Voice Input</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.button, styles.buttonSuccess, styles.flex1]}
-              onPress={() => setInputText("Hello Claude! How are you today?")}
-            >
-              <Text style={styles.buttonText}>👋 Quick Hello</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Message Input */}
-        <View style={styles.section}>
-          <Text style={styles.sectionSubtitle}>Send Message</Text>
-          <View style={[styles.flexRow, { alignItems: "flex-end", gap: 12 }]}>
-            <TextInput
-              style={[
-                styles.textInput,
-                styles.flex1,
-                { minHeight: 80, maxHeight: 120, textAlignVertical: "top" },
-              ]}
-              value={inputText}
-              onChangeText={setInputText}
-              placeholder="Type your message to Claude..."
-              placeholderTextColor={palette.textTertiary}
-              multiline
-              maxLength={1000}
-            />
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.buttonPrimary,
-                { minHeight: 56, paddingVertical: 16, paddingHorizontal: 20 },
-                (!inputText.trim() || conversationState !== "idle") &&
-                  styles.buttonDisabled,
-              ]}
-              onPress={sendMessage}
-              disabled={!inputText.trim() || conversationState !== "idle"}
-            >
-              <Text style={[{ fontSize: 20 }]}>
-                {conversationState === "sending" ? "⏳" : "📤"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Character count */}
-          <Text
-            style={[
-              styles.textRight,
-              { fontSize: 12, color: palette.textSecondary, marginTop: 4 },
-            ]}
-          >
-            {inputText.length}/1000 characters
-          </Text>
-        </View>
-
-        {/* Conversation State */}
-        {conversationState !== "idle" && (
-          <View style={styles.section}>
-            <View
-              style={[
-                styles.card,
-                {
-                  backgroundColor: getStateColor(conversationState),
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  {
-                    color: "white",
-                    fontSize: 16,
-                    fontWeight: "600",
-                    textAlign: "center",
-                  },
-                ]}
-              >
-                {getStateMessage(conversationState)}
-              </Text>
-              {conversationState === "waiting_for_claude" && (
-                <ActivityIndicator color="white" style={{ marginLeft: 12 }} />
+        {/* Messages */}
+        <ScrollView 
+          ref={scrollViewRef}
+          style={styles.messagesContainer}
+          contentContainerStyle={styles.messagesContent}
+          keyboardShouldPersistTaps="handled"
+          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+        >
+          {sortedMessages.map((message: any) => (
+            <View key={message.id}>
+              {/* User Message */}
+              {message.role === "user" && (
+                <View style={styles.userMessageContainer}>
+                  <View style={styles.userMessage}>
+                    <Text style={styles.userMessageText}>
+                      {renderMessageContent(message)}
+                    </Text>
+                  </View>
+                </View>
               )}
-            </View>
-          </View>
-        )}
 
-        {/* Recent Messages */}
-        <View style={styles.section}>
-          <Text style={styles.sectionSubtitle}>Recent Messages</Text>
-          {messagesLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={palette.accent} />
-              <Text style={styles.loadingText}>Loading messages...</Text>
-            </View>
-          ) : messagesArray.length > 0 ? (
-            <View style={{ gap: 12 }}>
-              {messagesArray
-                .sort((a: any, b: any) => b.timestamp - a.timestamp)
-                .slice(0, 10)
-                .map((message: any) => (
-                  <View
-                    key={message.id}
-                    style={[
-                      styles.messageCard,
-                      {
-                        borderLeftColor:
-                          message.role === "user"
-                            ? palette.accent
-                            : palette.success,
-                      },
-                    ]}
-                  >
-                    <View style={styles.messageHeader}>
-                      <Text
-                        style={[
-                          styles.messageRole,
-                          {
-                            color:
-                              message.role === "user"
-                                ? palette.accent
-                                : palette.success,
-                          },
-                        ]}
-                      >
-                        {message.role === "user" ? "👤 You" : "🤖 Claude"}
-                      </Text>
-                      <Text style={styles.messageTime}>
-                        {new Date(message.timestamp).toLocaleTimeString()}
-                      </Text>
-                    </View>
-                    <Text style={styles.messageContent}>{message.content}</Text>
-                    {message.status && (
-                      <Text
-                        style={[
-                          {
-                            fontSize: 12,
-                            color: palette.textSecondary,
-                            marginTop: 8,
-                            fontStyle: "italic",
-                          },
-                        ]}
-                      >
-                        Status: {message.status}
-                      </Text>
+              {/* Assistant Message */}
+              {message.role === "assistant" && (
+                <View style={styles.assistantMessageContainer}>
+                  {showThoughts && (
+                    <TouchableOpacity 
+                      style={styles.thoughtsHeader}
+                      onPress={() => setShowThoughts(!showThoughts)}
+                    >
+                      <Text style={styles.thoughtsLabel}>Thoughts</Text>
+                      <Text style={styles.thoughtsToggle}>›</Text>
+                    </TouchableOpacity>
+                  )}
+                  <View style={styles.assistantMessage}>
+                    <Text style={styles.assistantMessageText}>
+                      {renderMessageContent(message)}
+                    </Text>
+                    {message.isStreaming && (
+                      <ActivityIndicator size="small" color="#666" style={styles.streamingIndicator} />
                     )}
                   </View>
-                ))}
+                  {message.timestamp && !message.isStreaming && (
+                    <Text style={styles.messageTime}>
+                      {new Date(message.timestamp).toLocaleTimeString([], { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
+                    </Text>
+                  )}
+                </View>
+              )}
             </View>
-          ) : (
+          ))}
+
+          {/* Empty state */}
+          {sortedMessages.length === 0 && !messagesLoading && (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateIcon}>💬</Text>
-              <Text style={styles.emptyStateTitle}>No messages yet</Text>
               <Text style={styles.emptyStateText}>
-                Start a conversation by typing a message above
+                Start a conversation by typing or speaking
               </Text>
             </View>
           )}
+        </ScrollView>
+
+        {/* Input Area */}
+        <View style={styles.inputContainer}>
+          <View style={styles.inputWrapper}>
+            {/* Text Input */}
+            <TextInput
+              style={[styles.textInput, { height: textInputHeight }]}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder={isVoiceMode ? "Listening... Say a trigger word to send" : "Message"}
+              placeholderTextColor="#999"
+              multiline
+              maxLength={2000}
+              onContentSizeChange={handleContentSizeChange}
+              scrollEnabled={textInputHeight >= 100}
+              editable={!isVoiceMode}
+            />
+
+            {/* Voice/Send Button */}
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                isVoiceMode && styles.recordingButton
+              ]}
+              onPress={isVoiceMode ? toggleVoiceMode : (inputText.trim() ? () => sendMessage() : toggleVoiceMode)}
+            >
+              <Text style={styles.actionButtonIcon}>
+                {isVoiceMode ? '⏹' : (inputText.trim() ? '↑' : '🎙')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Voice indicator */}
+          {isVoiceMode && isRecognizing && (
+            <View style={styles.voiceIndicator}>
+              <View style={styles.voiceWave}>
+                {[...Array(20)].map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.voiceBar,
+                      {
+                        height: 4 + Math.random() * (volumeLevel + 5),
+                        opacity: 0.3 + (i / 20) * 0.7,
+                      }
+                    ]}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
         </View>
-      </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-function getStateColor(state: ConversationState): string {
-  switch (state) {
-    case "sending":
-      return "#F59E0B";
-    case "waiting_for_claude":
-      return "#3B82F6";
-    case "claude_responding":
-      return "#10B981";
-    case "error":
-      return "#EF4444";
-    default:
-      return "#6B7280";
-  }
-}
-
-function getStateMessage(state: ConversationState): string {
-  switch (state) {
-    case "sending":
-      return "Sending message...";
-    case "waiting_for_claude":
-      return "Waiting for Claude to respond...";
-    case "claude_responding":
-      return "Claude is typing...";
-    case "error":
-      return "An error occurred";
-    default:
-      return "";
-  }
-}
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  flex: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E5E5',
+  },
+  menuButton: {
+    padding: 8,
+  },
+  menuIcon: {
+    fontSize: 24,
+    color: '#000',
+  },
+  headerCenter: {
+    flex: 1,
+  },
+  settingsButton: {
+    padding: 8,
+  },
+  settingsIcon: {
+    fontSize: 20,
+    color: '#000',
+  },
+  messagesContainer: {
+    flex: 1,
+  },
+  messagesContent: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  userMessageContainer: {
+    alignItems: 'flex-end',
+    marginBottom: 16,
+  },
+  userMessage: {
+    backgroundColor: '#F0F0F0',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    maxWidth: '80%',
+  },
+  userMessageText: {
+    fontSize: 16,
+    color: '#000',
+    lineHeight: 22,
+  },
+  assistantMessageContainer: {
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  thoughtsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  thoughtsLabel: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  thoughtsToggle: {
+    fontSize: 18,
+    color: '#666',
+    marginLeft: 8,
+    transform: [{ rotate: '90deg' }],
+  },
+  assistantMessage: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    maxWidth: '80%',
+  },
+  assistantMessageText: {
+    fontSize: 16,
+    color: '#000',
+    lineHeight: 22,
+  },
+  streamingIndicator: {
+    marginTop: 8,
+  },
+  messageTime: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+    marginLeft: 16,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 100,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: '#999',
+    textAlign: 'center',
+  },
+  inputContainer: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    backgroundColor: '#F8F8F8',
+    borderRadius: 24,
+    paddingLeft: 16,
+    paddingRight: 4,
+    paddingVertical: 4,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#000',
+    paddingVertical: 8,
+    paddingRight: 8,
+    maxHeight: 200,
+    minHeight: 40,
+  },
+  actionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  recordingButton: {
+    backgroundColor: '#FF3B30',
+  },
+  actionButtonIcon: {
+    fontSize: 18,
+    color: '#FFF',
+    fontWeight: 'bold',
+  },
+  voiceIndicator: {
+    marginTop: 8,
+    paddingVertical: 8,
+  },
+  voiceWave: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 2,
+  },
+  voiceBar: {
+    width: 3,
+    backgroundColor: '#007AFF',
+    borderRadius: 2,
+  },
+});

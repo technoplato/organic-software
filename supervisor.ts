@@ -137,7 +137,7 @@ class Supervisor {
         "nodemon",
         "--quiet",
         "--watch",
-        "instant-message-handler.ts",
+        "instant-message-handler-ai.ts",
         "--watch",
         ".env",
         "--watch",
@@ -157,7 +157,7 @@ class Supervisor {
         "--signal",
         "SIGINT",
         "--exec",
-        "npx tsx instant-message-handler.ts",
+        "npx tsx instant-message-handler-ai.ts",
       ],
     });
   }
