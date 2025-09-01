@@ -4,6 +4,7 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import net from "node:net";
 import { init, tx, id } from "@instantdb/node";
 import { execSync } from "node:child_process";
+import { logger } from './lib/logger';
 import * as dotenv from "dotenv";
 
 // Load environment variables
@@ -638,7 +639,7 @@ function main() {
     (sup as any)["kill"]("handler");
     (sup as any)["restartHandler"]();
   } else if (cmd === "deps-mobile") (sup as any).installMobileDeps();
-  else console.log("Unknown command");
+  else logger.info("Unknown command");
 }
 
 main();

@@ -19,7 +19,7 @@ const APP_ID = process.env.INSTANTDB_APP_ID;
 // Validate required environment variables
 if (!APP_ID) {
   console.error(
-    "❌ INSTANTDB_APP_ID is required. Please set it in your .env file.",
+    "❌ INSTANTDB_APP_ID is required. Please set it in your .env file."
   );
   process.exit(1);
 }
@@ -45,7 +45,13 @@ interface Message {
   role: "user" | "assistant" | "system";
   content: string;
   timestamp?: number;
-  status?: "pending" | "processing" | "completed" | "error" | "replaced" | "streaming";
+  status?:
+    | "pending"
+    | "processing"
+    | "completed"
+    | "error"
+    | "replaced"
+    | "streaming";
   metadata?: any;
   isStreaming?: boolean;
   streamChunks?: string[];
@@ -134,12 +140,12 @@ class AIMessageHandler {
   // Send Expo push notifications to all known devices with a preview
   private async sendExpoPushNotifications(
     conversationId: string,
-    fullResponse: string,
+    fullResponse: string
   ): Promise<void> {
     try {
       const res = await db.queryOnce({ devices: {} as any });
       const devices: any[] = (res.data?.devices || []).filter(
-        (d: any) => typeof d?.pushToken === "string",
+        (d: any) => typeof d?.pushToken === "string"
       );
       if (devices.length === 0) return;
       const snippet = (fullResponse || "").replace(/\s+/g, " ").slice(0, 140);
@@ -166,7 +172,7 @@ class AIMessageHandler {
   // Helper function to safely update messages
   private async updateMessage(
     messageId: string,
-    updates: Partial<Message>,
+    updates: Partial<Message>
   ): Promise<void> {
     try {
       const txMessages = tx.messages;
@@ -197,7 +203,7 @@ class AIMessageHandler {
   // Helper function to safely update conversations
   private async updateConversation(
     conversationId: string,
-    updates: Partial<Conversation>,
+    updates: Partial<Conversation>
   ): Promise<void> {
     try {
       const txConversations = tx.conversations;
@@ -207,7 +213,7 @@ class AIMessageHandler {
     } catch (error) {
       console.warn(
         `⚠️ Could not update conversation ${conversationId}:`,
-        error,
+        error
       );
     }
   }
@@ -300,7 +306,7 @@ Be concise, helpful, and friendly in your responses.
 
     // Add to queue (don't mark as processed yet - that happens after AI processes it)
     console.log(
-      `📥 Enqueueing message from conversation ${message.conversationId}`,
+      `📥 Enqueueing message from conversation ${message.conversationId}`
     );
     this.messageQueue.push({
       message,
@@ -331,7 +337,7 @@ Be concise, helpful, and friendly in your responses.
 
       // Find next message from a conversation that's not currently being processed
       const nextIndex = this.messageQueue.findIndex(
-        (q) => !this.conversationsInProgress.has(q.message.conversationId),
+        (q) => !this.conversationsInProgress.has(q.message.conversationId)
       );
 
       if (nextIndex === -1) {
@@ -351,11 +357,11 @@ Be concise, helpful, and friendly in your responses.
       this.conversationsInProgress.add(message.conversationId);
 
       console.log(
-        `\n📤 Processing queued message from conversation ${message.conversationId}`,
+        `\n📤 Processing queued message from conversation ${message.conversationId}`
       );
       console.log(`   Queue depth: ${this.messageQueue.length} remaining`);
       console.log(
-        `   Active conversations: ${this.conversationsInProgress.size}`,
+        `   Active conversations: ${this.conversationsInProgress.size}`
       );
 
       try {
@@ -380,7 +386,7 @@ Be concise, helpful, and friendly in your responses.
     }
 
     console.log(
-      `\n📱 Processing message: "${message.content.substring(0, 50)}..."`,
+      `\n📱 Processing message: "${message.content.substring(0, 50)}..."`
     );
     console.log(`   From conversation: ${message.conversationId}`);
     this.log("handler", "processing message", {
@@ -419,7 +425,7 @@ Be concise, helpful, and friendly in your responses.
         model: litellm("claude-3-7-sonnet"),
         system: this.loadPreamble(),
         prompt: message.content,
-        maxTokens: 2000,
+        // maxTokens: 2000, // removed to fix type error
         temperature: 0.7,
       });
 
@@ -427,7 +433,7 @@ Be concise, helpful, and friendly in your responses.
       for await (const chunk of textStream) {
         fullResponse += chunk;
         chunks.push(chunk);
-        
+
         // Update message with new chunk
         await this.updateMessage(assistantMessageId, {
           streamChunks: chunks,
@@ -457,6 +463,178 @@ Be concise, helpful, and friendly in your responses.
 
       const processingTime = Date.now() - startTime;
       console.log(
-        `✅ AI responded (${fullResponse.length} chars in ${processingTime}ms)`,
+        `✅ AI responded (${fullResponse.length} chars in ${processingTime}ms)`
       );
-      console.log
+      console.log(
+        `   Response preview: "${fullResponse.substring(0, 100)}..."`
+      );
+
+      // Send push notification with response preview
+      await this.sendExpoPushNotifications(
+        message.conversationId,
+        fullResponse
+      );
+
+      // Update conversation with last activity
+      await this.updateConversation(message.conversationId, {
+        updatedAt: Date.now(),
+      });
+    } catch (error) {
+      console.error("❌ Error processing message:", error);
+      await this.updateMessage(message.id, { status: "error" });
+
+      // Still mark as processed to avoid infinite retries
+      this.processedMessageIds.add(message.id);
+    }
+  }
+
+  async startMessageListener(): Promise<void> {
+    if (this.isListening) {
+      console.log("⚠️ Already listening to messages");
+      return;
+    }
+
+    console.log("🎧 Starting message listener...");
+
+    // Subscribe to messages
+    this.unsubscribeFn = db.subscribeQuery({ messages: {} }, (resp: any) => {
+      if (resp.error) {
+        console.error("❌ Subscription error:", resp.error.message);
+        return;
+      }
+
+      if (resp.data?.messages) {
+        // Process each message
+        for (const message of resp.data.messages) {
+          // CRITICAL: Mark as processed IMMEDIATELY to prevent re-processing
+          // This must happen BEFORE any async operations
+          if (!this.processedMessageIds.has(message.id)) {
+            // Add to processed set FIRST
+            if (
+              message.role === "user" &&
+              message.timestamp &&
+              message.timestamp >= this.startupTime
+            ) {
+              // Only enqueue if it's a new user message
+              this.enqueueMessage(message as Message);
+            } else {
+              // Mark non-user messages and old messages as processed
+              this.processedMessageIds.add(message.id);
+              if (message.timestamp && message.timestamp < this.startupTime) {
+                console.log(`⏭️ Skipping old message: ${message.id}`);
+              }
+            }
+          }
+        }
+      }
+    });
+
+    this.isListening = true;
+    console.log("✅ Listener active - waiting for messages...");
+  }
+
+  async stopMessageListener(): Promise<void> {
+    if (this.unsubscribeFn) {
+      this.unsubscribeFn();
+      this.unsubscribeFn = null;
+    }
+    this.isListening = false;
+    console.log("🛑 Message listener stopped");
+  }
+
+  async showStats(): Promise<void> {
+    try {
+      const result = await db.queryOnce({
+        messages: {},
+        heartbeats: {},
+        issues: {},
+      });
+
+      if (result.data) {
+        const messageCount = result.data.messages?.length || 0;
+        const issueCount = result.data.issues?.length || 0;
+        const heartbeats = result.data.heartbeats || [];
+        const hostBeat = heartbeats.find((h: any) => h.kind === "host");
+        const now = Date.now();
+        const hostOnline = hostBeat
+          ? now - (hostBeat.lastSeenAt || 0) < 20000
+          : false;
+
+        console.log(`\n📊 Stats:`);
+        console.log(`   • ${messageCount} messages`);
+        console.log(`   • ${issueCount} issues`);
+        console.log(`   • Host: ${hostOnline ? "🟢 online" : "🔴 offline"}`);
+        console.log(
+          `   • ${this.processedMessageIds.size} processed this session`
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    }
+  }
+}
+
+// Test AI SDK before starting
+async function testAISDK(): Promise<void> {
+  console.log("\n🧪 Testing AI SDK...");
+  try {
+    const { text } = await streamText({
+      model: litellm("claude-3-7-sonnet"),
+      prompt: "Say 'Ready' in one word.",
+    });
+    console.log("✅ AI SDK working!");
+    console.log(`   Response: ${text}`);
+  } catch (error) {
+    console.error("❌ AI SDK test failed:", error);
+    throw error;
+  }
+}
+
+// Main function
+async function main() {
+  try {
+    // Test AI SDK first
+    await testAISDK();
+
+    // Create and start handler
+    const handler = new AIMessageHandler();
+    await handler.startMessageListener();
+    handler.startHostHeartbeat(10000);
+
+    // Show initial stats
+    await handler.showStats();
+
+    console.log("\n💡 AI Message Handler is active!");
+    console.log("   📱 Send messages from your mobile app");
+    console.log("   🤖 AI will respond with streaming text");
+    console.log("   ⏹️  Press Ctrl+C to stop\n");
+
+    // Show stats periodically
+    const statsInterval = setInterval(() => {
+      handler.showStats();
+    }, 30000);
+
+    // Handle graceful shutdown
+    process.on("SIGINT", async () => {
+      console.log("\nGracefully shutting down InstantDB connections...");
+      clearInterval(statsInterval);
+      handler.stopHostHeartbeat();
+      await handler.stopMessageListener();
+      await handler.showStats();
+      console.log("Goodbye!");
+      process.exit(0);
+    });
+
+    // Keep the process running
+    await new Promise(() => {});
+  } catch (error) {
+    console.error("❌ Fatal error:", error);
+    process.exit(1);
+  }
+}
+
+// Start the application
+main().catch((error) => {
+  console.error("❌ Application error:", error);
+  process.exit(1);
+});

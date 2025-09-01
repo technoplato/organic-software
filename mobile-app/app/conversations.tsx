@@ -41,7 +41,7 @@ Notifications.setNotificationHandler({
 const db = init({
   appId:
     process.env.EXPO_PUBLIC_INSTANTDB_APP_ID ||
-    "54d69382-c27c-4e54-b2ac-c3dcaef2f0ad",
+    "fb7ff756-0a99-4d0c-81f7-71a0abee071f",
 });
 
 // Define types

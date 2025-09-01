@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/callsites": "^2.0.0",
     "nodemon": "^3.1.0"
   },
   "peerDependencies": {
@@ -39,6 +40,7 @@
     "@instantdb/core": "file:/Users/mlustig/dev/tools/instant/client/packages/node",
     "@instantdb/node": "file:/Users/mlustig/dev/tools/instant/client/packages/node",
     "ai": "^5.0.28",
+    "callsites": "^4.2.0",
     "dotenv": "^17.2.1",
     "expo-server-sdk": "^4.0.0",
     "prettier": "^3.6.2",

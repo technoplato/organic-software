@@ -5,6 +5,7 @@ import { streamText } from "ai";
 import { litellm } from "./lib/litellm-provider";
 import process from "process";
 import { config } from "dotenv";
+import { logger } from "./lib/logger";
 
 // Load environment variables
 config();
@@ -12,14 +13,14 @@ config();
 const APP_ID = process.env.INSTANTDB_APP_ID;
 
 if (!APP_ID) {
-  console.error(
+  logger.error(
     "❌ INSTANTDB_APP_ID is required. Please set it in your .env file."
   );
   process.exit(1);
 }
 
-console.log("🚀 Starting AI Message Handler with Streaming Support...");
-console.log("📱 App ID:", APP_ID);
+logger.info("🚀 Starting AI Message Handler with Streaming Support...");
+logger.info("📱 App ID:", APP_ID);
 
 const db = init({ appId: APP_ID });
 
@@ -54,7 +55,7 @@ class AIMessageHandler {
         await db.transact([txMessages[messageId].update(updates)]);
       }
     } catch (error) {
-      console.warn(`⚠️ Could not update message ${messageId}:`, error);
+      logger.warn(`⚠️ Could not update message ${messageId}:`, error);
     }
   }
 
@@ -72,7 +73,7 @@ class AIMessageHandler {
           }),
         ]);
       } catch (err) {
-        console.warn("⚠️ Failed to write host heartbeat:", err);
+        logger.warn("⚠️ Failed to write host heartbeat:", err);
       }
     };
 
@@ -99,7 +100,7 @@ class AIMessageHandler {
 
     if (message.timestamp && message.timestamp < this.startupTime) {
       this.processedMessageIds.add(message.id);
-      console.log(`⏭️ Skipping old message: ${message.id}`);
+      logger.info(`⏭️ Skipping old message: ${message.id}`);
       return;
     }
 
@@ -121,7 +122,7 @@ class AIMessageHandler {
         streamChunks: [],
       });
 
-      console.log("🤖 Sending to AI with streaming...");
+      logger.info("🤖 Sending to AI with streaming...");
 
       const startTime = Date.now();
       let fullResponse = "";
@@ -146,14 +147,14 @@ class AIMessageHandler {
         });
 
         if (chunks.length % 10 === 0) {
-          console.log(`   Streaming... ${fullResponse.length} chars`);
+          logger.info(`   Streaming... ${fullResponse.length} chars`);
         }
       }
 
       await this.updateMessage(assistantMessageId, {
         finalContent: fullResponse,
         content: fullResponse,
-        status: "completed",
+        // maxTokens: 10, // removed to fix type error
         isStreaming: false,
       });
 
@@ -161,22 +162,22 @@ class AIMessageHandler {
       this.processedMessageIds.add(message.id);
 
       const processingTime = Date.now() - startTime;
-      console.log(
+      logger.info(
         `✅ AI responded (${fullResponse.length} chars in ${processingTime}ms)`
       );
     } catch (error) {
-      console.error("❌ Error processing message:", error);
+      logger.error("❌ Error processing message:", error);
       await this.updateMessage(message.id, { status: "error" });
       this.processedMessageIds.add(message.id);
     }
   }
 
   async startListener(): Promise<void> {
-    console.log("🎧 Starting message listener...");
+    logger.info("🎧 Starting message listener...");
 
     db.subscribeQuery({ messages: {} }, (resp: any) => {
       if (resp.error) {
-        console.error("❌ Subscription error:", resp.error.message);
+        logger.error("❌ Subscription error:", resp.error.message);
         return;
       }
 
@@ -187,7 +188,7 @@ class AIMessageHandler {
       }
     });
 
-    console.log("✅ Listener active - waiting for messages...");
+    logger.info("✅ Listener active - waiting for messages...");
   }
 
   async showStats(): Promise<void> {
@@ -206,15 +207,15 @@ class AIMessageHandler {
           ? now - (hostBeat.lastSeenAt || 0) < 20000
           : false;
 
-        console.log(`\n📊 Stats:`);
-        console.log(`   • ${messageCount} messages`);
-        console.log(`   • Host: ${hostOnline ? "🟢 online" : "🔴 offline"}`);
-        console.log(
+        logger.info(`\n📊 Stats:`);
+        logger.info(`   • ${messageCount} messages`);
+        logger.info(`   • Host: ${hostOnline ? "🟢 online" : "🔴 offline"}`);
+        logger.info(
           `   • ${this.processedMessageIds.size} processed this session`
         );
       }
     } catch (error) {
-      console.error("Error fetching stats:", error);
+      logger.error("Error fetching stats:", error);
     }
   }
 }
@@ -224,17 +225,17 @@ async function main() {
   const handler = new AIMessageHandler();
 
   // Test AI SDK
-  console.log("\n🧪 Testing AI SDK...");
+  logger.info("\n🧪 Testing AI SDK...");
   try {
     const { text } = await streamText({
       model: litellm("claude-3-7-sonnet"),
       prompt: "Say 'Ready' in one word.",
       maxTokens: 10,
     });
-    console.log("✅ AI SDK working!");
-    console.log(`   Response: ${text}`);
+    logger.info("✅ AI SDK working!");
+    logger.info(`   Response: ${text}`);
   } catch (error) {
-    console.error("❌ AI SDK test failed:", error);
+    logger.error("❌ AI SDK test failed:", error);
     process.exit(1);
   }
 
@@ -242,15 +243,15 @@ async function main() {
   handler.startHostHeartbeat(10000);
   await handler.showStats();
 
-  console.log("\n💡 AI Message Handler is active!");
-  console.log("   📱 Send messages from your mobile app");
-  console.log("   🤖 AI will respond with streaming text");
-  console.log("   ⏹️  Press Ctrl+C to stop\n");
+  logger.info("\n💡 AI Message Handler is active!");
+  logger.info("   📱 Send messages from your mobile app");
+  logger.info("   🤖 AI will respond with streaming text");
+  logger.info("   ⏹️  Press Ctrl+C to stop\n");
 
   setInterval(() => handler.showStats(), 30000);
 
   process.on("SIGINT", async () => {
-    console.log("\n🛑 Shutting down...");
+    logger.info("\n🛑 Shutting down...");
     handler.stopHostHeartbeat();
     await handler.showStats();
     db.shutdown();
@@ -261,7 +262,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("❌ Application error:", error);
+  logger.error("❌ Application error:", error);
   db.shutdown();
   process.exit(1);
 });
