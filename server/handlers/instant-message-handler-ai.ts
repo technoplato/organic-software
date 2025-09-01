@@ -2,13 +2,13 @@
 
 import { init, tx, id } from "@instantdb/node";
 import { streamText } from "ai";
-import { litellm } from "./lib/litellm-provider";
+import { litellm } from "../lib/litellm-provider";
 import process from "process";
 import { config } from "dotenv";
-import { logger } from "./lib/logger";
+import { logger } from "../lib/logger";
 
 // Load environment variables
-config();
+config({ path: './config/.env' });
 
 const APP_ID = process.env.INSTANTDB_APP_ID;
 

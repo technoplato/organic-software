@@ -43,10 +43,10 @@ function loadApiKey(apiKey?: string): string {
   if (!apiKey) {
     // Try to load from default file
     try {
-      return fs.readFileSync("./openai_proxy_api_key.json", "utf8");
+      return fs.readFileSync("../../config/openai_proxy_api_key.json", "utf8");
     } catch {
       throw new Error(
-        "No API key provided and openai_proxy_api_key.json not found",
+        "No API key provided and openai_proxy_api_key.json not found in config directory",
       );
     }
   }

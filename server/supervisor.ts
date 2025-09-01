@@ -8,7 +8,7 @@ import { logger } from './lib/logger';
 import * as dotenv from "dotenv";
 
 // Load environment variables
-dotenv.config();
+dotenv.config({ path: './config/.env' });
 
 const APP_ID =
   process.env.INSTANTDB_APP_ID ||
@@ -138,9 +138,9 @@ class Supervisor {
         "nodemon",
         "--quiet",
         "--watch",
-        "instant-message-handler-ai.ts",
+        "server/handlers/instant-message-handler-ai.ts",
         "--watch",
-        ".env",
+        "../config/.env",
         "--watch",
         "package.json",
         "--ignore",
@@ -158,7 +158,7 @@ class Supervisor {
         "--signal",
         "SIGINT",
         "--exec",
-        "npx tsx instant-message-handler-ai.ts",
+        "npx tsx server/handlers/instant-message-handler-ai.ts",
       ],
     });
   }
@@ -598,13 +598,13 @@ function main() {
         "nodemon",
         "--quiet",
         "--watch",
-        "supervisor.ts",
+        "../supervisor.ts",
         "--ext",
         "ts,js,json",
         "--signal",
         "SIGINT",
         "--exec",
-        "npx tsx supervisor.ts",
+        "npx tsx ../supervisor.ts",
       ],
       { stdio: "inherit", env },
     );
