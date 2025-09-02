@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,12 @@ import {
   RecognitionStopReason,
 } from "../../lib/enhanced-speech-recognition";
 import { useStyles } from "../../lib/useStyles";
+import { init, tx, id } from "../../lib/db.native";
+
+// Initialize InstantDB
+const db = init({
+  appId: process.env.EXPO_PUBLIC_INSTANTDB_APP_ID || "",
+});
 
 // Timer Display Component
 function TimerDisplay({
@@ -132,8 +138,28 @@ function VolumeMeter({
   );
 }
 
+// Helper function to format time
+function formatTime(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  } else if (minutes > 0) {
+    return `${minutes}:${secs.toString().padStart(2, "0")}`;
+  } else {
+    return `0:${secs.toString().padStart(2, "0")}`;
+  }
+}
+
 export default function EnhancedSpeechDemo() {
   const { styles: globalStyles, palette, isDark } = useStyles();
+
+  // Refs for tracking InstantDB IDs
+  const transcriptionIdRef = useRef<string | null>(null);
+  const segmentIdsRef = useRef<Map<string, string>>(new Map());
+  const currentInterimSegmentIdRef = useRef<string | null>(null);
 
   const {
     state,
@@ -144,6 +170,7 @@ export default function EnhancedSpeechDemo() {
     recordingUri,
     elapsedSeconds,
     formattedElapsedTime,
+    sessionStartTime,
     normalizedVolumeLevel,
     isAvailable,
     start,
@@ -152,19 +179,199 @@ export default function EnhancedSpeechDemo() {
     reset,
     exportTranscript,
   } = useEnhancedSpeechRecognition({
-    onNewResult: ({ deltaText, isInterim }) => {
-      // Optional: Log new words as they come in
+    onSpeechRecognitionStarted: async ({ startTime, sessionId }) => {
+      console.log(`[SpeechDemo] Recognition started. Session: ${sessionId}`);
+
+      // Create new transcription in InstantDB
+      try {
+        const transcriptionId = id();
+        transcriptionIdRef.current = transcriptionId;
+        segmentIdsRef.current.clear();
+
+        await db.transact([
+          tx.transcriptions[transcriptionId].update({
+            title: `Recording ${new Date(startTime).toLocaleString()}`,
+            startedAt: new Date(startTime).toISOString(),
+            status: "recording",
+            deviceId: sessionId, // Using sessionId as a unique identifier
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }),
+        ]);
+
+        console.log(
+          "[SpeechDemo] Created transcription in InstantDB:",
+          transcriptionId
+        );
+      } catch (err) {
+        console.error("[SpeechDemo] Failed to create transcription:", err);
+      }
+    },
+
+    onSegmentFinalized: async (segment, allSegments) => {
+      console.log(
+        `[SpeechDemo] Segment finalized: "${segment.text.substring(0, 50)}..."`
+      );
+
+      // Sync segment to InstantDB
+      if (transcriptionIdRef.current) {
+        try {
+          // If we have an interim segment, update it to final
+          if (currentInterimSegmentIdRef.current) {
+            await db.transact([
+              tx.segments[currentInterimSegmentIdRef.current].update({
+                text: segment.text,
+                timestamp: segment.timestamp,
+                formattedTimestamp: segment.formattedTimestamp,
+                confidence: segment.confidence || 0,
+                isFinal: segment.isFinal,
+                isInterim: false,
+                updatedAt: new Date().toISOString(),
+              }),
+            ]);
+
+            segmentIdsRef.current.set(
+              segment.id,
+              currentInterimSegmentIdRef.current
+            );
+            console.log(
+              "[SpeechDemo] Converted interim segment to final:",
+              currentInterimSegmentIdRef.current
+            );
+            currentInterimSegmentIdRef.current = null; // Reset for next segment
+          } else {
+            // Create new final segment if no interim exists
+            const segmentId = id();
+            segmentIdsRef.current.set(segment.id, segmentId);
+
+            await db.transact([
+              tx.segments[segmentId].update({
+                text: segment.text,
+                timestamp: segment.timestamp,
+                formattedTimestamp: segment.formattedTimestamp,
+                confidence: segment.confidence || 0,
+                isFinal: segment.isFinal,
+                isInterim: false,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              }),
+              tx.segments[segmentId].link({
+                transcription: transcriptionIdRef.current,
+              }),
+            ]);
+
+            console.log(
+              "[SpeechDemo] Created final segment in InstantDB:",
+              segmentId
+            );
+          }
+        } catch (err) {
+          console.error("[SpeechDemo] Failed to sync segment:", err);
+        }
+      }
+    },
+
+    onNewResult: async ({
+      deltaText,
+      isInterim,
+      currentSegment,
+      allSegments,
+    }) => {
       console.log(
         `[SpeechDemo] New ${isInterim ? "interim" : "final"} text: "${deltaText}"`
       );
+
+      // Sync interim results in real-time for live updates
+      if (isInterim && transcriptionIdRef.current && deltaText) {
+        try {
+          // Check if we need to create a new interim segment or update existing one
+          if (!currentInterimSegmentIdRef.current) {
+            // Create a new interim segment
+            const interimSegmentId = id();
+            currentInterimSegmentIdRef.current = interimSegmentId;
+
+            // Calculate current timestamp for interim segment
+            const currentTimestamp = Math.floor((Date.now() - (sessionStartTime || Date.now())) / 1000);
+            const formattedTime = formatTime(currentTimestamp);
+            
+            await db.transact([
+              tx.segments[interimSegmentId].update({
+                text: deltaText,
+                timestamp: currentTimestamp,
+                formattedTimestamp: formattedTime,
+                confidence: 0,
+                isFinal: false,
+                isInterim: true,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              }),
+              tx.segments[interimSegmentId].link({
+                transcription: transcriptionIdRef.current,
+              }),
+            ]);
+
+            console.log(
+              "[SpeechDemo] Created interim segment for real-time sync:",
+              interimSegmentId
+            );
+          } else {
+            // Update existing interim segment with new text
+            await db.transact([
+              tx.segments[currentInterimSegmentIdRef.current].update({
+                text: deltaText,
+                updatedAt: new Date().toISOString(),
+              }),
+            ]);
+
+            console.log("[SpeechDemo] Updated interim segment with new text");
+          }
+        } catch (err) {
+          console.error("[SpeechDemo] Failed to sync interim result:", err);
+        }
+      }
     },
+
     onError: (error) => {
       console.error(`[SpeechDemo] Error: ${error.code} - ${error.message}`);
     },
-    onSpeechRecognitionStopped: (reason) => {
-      console.log(`[SpeechDemo] Speech recognition stopped. Reason: ${reason}`);
 
-      // You can handle different stop reasons here
+    onSpeechRecognitionStopped: async ({
+      reason,
+      sessionDuration,
+      segmentCount,
+      sessionId,
+    }) => {
+      console.log(`[SpeechDemo] Speech recognition stopped. Reason: ${reason}`);
+      console.log(
+        `[SpeechDemo] Session duration: ${sessionDuration}s, Segments: ${segmentCount}`
+      );
+
+      // Update transcription status in InstantDB
+      if (transcriptionIdRef.current) {
+        try {
+          await db.transact([
+            tx.transcriptions[transcriptionIdRef.current].update({
+              endedAt: new Date().toISOString(),
+              duration: sessionDuration,
+              status: "completed",
+              updatedAt: new Date().toISOString(),
+            }),
+          ]);
+
+          console.log(
+            "[SpeechDemo] Updated transcription as completed in InstantDB"
+          );
+
+          // Clear refs after successful completion
+          transcriptionIdRef.current = null;
+          segmentIdsRef.current.clear();
+          currentInterimSegmentIdRef.current = null;
+        } catch (err) {
+          console.error("[SpeechDemo] Failed to update transcription:", err);
+        }
+      }
+
+      // Handle different stop reasons
       switch (reason) {
         case RecognitionStopReason.USER_STOPPED:
           console.log("[SpeechDemo] User manually stopped recognition");

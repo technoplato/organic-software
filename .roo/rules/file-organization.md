@@ -62,6 +62,26 @@ This document defines the standard file organization structure for the Organic S
    - Tests should be organized by type: unit, integration, e2e
    - Test files should be named with the pattern: `test-[what-is-being-tested].ts`
    - Test fixtures should be in `tests/fixtures/`
+   - **Test Documentation**: Each test file must begin with a comprehensive comment block that includes:
+     - **How to Run**: The exact command to execute this test (npm script, npx command, etc.)
+     - **Purpose**: Why the test exists and what it validates
+     - **Test Coverage**: Exactly what functionality/behavior is being tested
+     - **Test Data**: What data was added or used for testing
+     - **Problem Context**: What challenges or issues this test helps resolve
+     - **User Request**: What the user originally asked the LLM to create a test for
+     - Example format:
+       ```typescript
+       /**
+        * Test: [Test Name]
+        * How to Run: npm run test:unit -- test-structured-output.ts
+        *            OR: npx tsx tests/unit/test-structured-output.ts
+        * Purpose: [Why this test exists]
+        * Tests: [What exactly is being tested]
+        * Test Data: [What data was added/used]
+        * Challenges: [What problems this test addresses]
+        * User Request: [Original user request to LLM]
+        */
+       ```
 
 4. **Scripts**
    - All utility scripts should be in the `scripts/` directory

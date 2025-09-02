@@ -27,21 +27,21 @@ export const RecognitionErrorCode = {
   // Permission errors
   PERMISSION_DENIED: "permission-denied",
   NOT_ALLOWED: "not-allowed",
-  
+
   // Availability errors
   NOT_AVAILABLE: "not-available",
   SERVICE_NOT_ALLOWED: "service-not-allowed",
   LANGUAGE_NOT_SUPPORTED: "language-not-supported",
-  
+
   // Runtime errors
   NO_SPEECH: "no-speech",
   NETWORK: "network",
   AUDIO_CAPTURE: "audio-capture",
   ABORTED: "aborted",
-  
+
   // Start errors
   START_FAILED: "start-failed",
-  
+
   // Unknown
   UNKNOWN: "unknown",
 } as const;
@@ -122,6 +122,24 @@ export interface UseEnhancedSpeechRecognitionOptions {
     fullTranscript: string;
     /** Whether this is interim (non-final) result */
     isInterim: boolean;
+    /** All segments so far */
+    allSegments: TranscriptSegment[];
+  }) => void;
+
+  /**
+   * Callback invoked when a new segment is finalized (either from final result or silence detection)
+   */
+  onSegmentFinalized?: (
+    segment: TranscriptSegment,
+    allSegments: TranscriptSegment[]
+  ) => void;
+
+  /**
+   * Callback invoked when speech recognition starts
+   */
+  onSpeechRecognitionStarted?: (sessionInfo: {
+    startTime: number;
+    sessionId: string;
   }) => void;
 
   /**
@@ -132,9 +150,14 @@ export interface UseEnhancedSpeechRecognitionOptions {
 
   /**
    * Callback invoked when speech recognition stops for any reason.
-   * Provides the reason why recognition stopped.
+   * Provides detailed information about the stopped session.
    */
-  onSpeechRecognitionStopped?: (reason: RecognitionStopReasonType) => void;
+  onSpeechRecognitionStopped?: (stopInfo: {
+    reason: RecognitionStopReasonType;
+    sessionDuration: number;
+    segmentCount: number;
+    sessionId: string;
+  }) => void;
 }
 
 // Contextual strings for better recognition
@@ -275,14 +298,14 @@ function formatTime(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = seconds % 60;
-  
+
   if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   } else if (minutes > 0) {
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    return `${minutes}:${secs.toString().padStart(2, "0")}`;
   } else {
     // For less than a minute, show "0:05" format
-    return `0:${secs.toString().padStart(2, '0')}`;
+    return `0:${secs.toString().padStart(2, "0")}`;
   }
 }
 
@@ -296,7 +319,13 @@ function formatTime(seconds: number): string {
 export function useEnhancedSpeechRecognition(
   options: UseEnhancedSpeechRecognitionOptions = {}
 ): EnhancedSpeechRecognitionHook {
-  const { onNewResult, onError, onSpeechRecognitionStopped } = options;
+  const {
+    onNewResult,
+    onError,
+    onSpeechRecognitionStopped,
+    onSegmentFinalized,
+    onSpeechRecognitionStarted,
+  } = options;
   const [state, setState] = useState<RecognitionStateType>(
     RecognitionState.IDLE
   );
@@ -306,9 +335,10 @@ export function useEnhancedSpeechRecognition(
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
+  // console.log({ sessionStartTime });
   const [restartAttempts, setRestartAttempts] = useState(0);
   const [volumeLevel, setVolumeLevel] = useState(0);
-  
+
   // Capabilities state
   const [capabilities, setCapabilities] = useState({
     isAvailable: false,
@@ -322,6 +352,7 @@ export function useEnhancedSpeechRecognition(
   const segmentIdCounter = useRef(0);
   const previousTranscriptRef = useRef<string>("");
   const stopReasonRef = useRef<RecognitionStopReasonType | null>(null);
+  const sessionIdRef = useRef<string>("");
 
   // Silence detection for creating segments
   const lastTranscriptRef = useRef("");
@@ -329,15 +360,18 @@ export function useEnhancedSpeechRecognition(
   const pendingSegmentRef = useRef<string>("");
   const lastSegmentedTextRef = useRef<string>(""); // Track what's already been segmented
   const SILENCE_THRESHOLD_MS = 3000; // 3 seconds of no new words triggers a new segment
-  
+
   // Check capabilities on mount
   useEffect(() => {
     const checkCapabilities = async () => {
       try {
-        const isAvailable = ExpoSpeechRecognitionModule.isRecognitionAvailable();
-        const supportsOnDevice = ExpoSpeechRecognitionModule.supportsOnDeviceRecognition();
-        const supportsRecording = ExpoSpeechRecognitionModule.supportsRecording();
-        
+        const isAvailable =
+          ExpoSpeechRecognitionModule.isRecognitionAvailable();
+        const supportsOnDevice =
+          ExpoSpeechRecognitionModule.supportsOnDeviceRecognition();
+        const supportsRecording =
+          ExpoSpeechRecognitionModule.supportsRecording();
+
         setCapabilities({
           isAvailable,
           supportsOnDevice,
@@ -347,13 +381,16 @@ export function useEnhancedSpeechRecognition(
         console.error("[SpeechRecognition] Failed to check capabilities:", err);
       }
     };
-    
+
     checkCapabilities();
   }, []);
-  
+
   // Computed values
   const formattedElapsedTime = formatTime(elapsedSeconds);
-  const normalizedVolumeLevel = Math.max(0, Math.min(1, (volumeLevel + 2) / 12));
+  const normalizedVolumeLevel = Math.max(
+    0,
+    Math.min(1, (volumeLevel + 2) / 12)
+  );
 
   // Timer management
   useEffect(() => {
@@ -379,16 +416,39 @@ export function useEnhancedSpeechRecognition(
 
   // Event handlers
   useSpeechRecognitionEvent("start", () => {
+    console.log("[SpeechRecognition] Event: start");
     setState(RecognitionState.RECOGNIZING);
     setError(null);
-    if (!sessionStartTime) {
-      setSessionStartTime(Date.now());
-    }
+    const startTime = Date.now();
+    console.log({ state, sessionStartTime, error, startTime });
+    // if (!sessionStartTime) {
+    setSessionStartTime(startTime);
+    // Generate a new session ID
+    sessionIdRef.current = `session-${startTime}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log(
+      `[SpeechRecognition] New session started: ${sessionIdRef.current} at ${startTime}`
+    );
+    // } else {
+    //   console.log(
+    //     `[SpeechRecognition] Session resumed: ${sessionIdRef.current}`
+    //   );
+    // }
     setRestartAttempts(0);
     // Reset segmentation tracking
     lastSegmentedTextRef.current = "";
     lastTranscriptRef.current = "";
     pendingSegmentRef.current = "";
+
+    // Notify about session start
+    if (onSpeechRecognitionStarted) {
+      console.log(
+        "[SpeechRecognition] Calling onSpeechRecognitionStarted callback"
+      );
+      onSpeechRecognitionStarted({
+        startTime,
+        sessionId: sessionIdRef.current,
+      });
+    }
   });
 
   useSpeechRecognitionEvent("end", () => {
@@ -399,13 +459,25 @@ export function useEnhancedSpeechRecognition(
     setState(RecognitionState.IDLE);
 
     // Determine stop reason and call callback
-    if (stopReasonRef.current && onSpeechRecognitionStopped) {
-      onSpeechRecognitionStopped(stopReasonRef.current);
-      stopReasonRef.current = null;
-    } else if (!isStoppingRef.current && wasRecognizing && onSpeechRecognitionStopped) {
-      // Recognition ended unexpectedly
-      onSpeechRecognitionStopped(RecognitionStopReason.NATURAL_END);
+    const finalReason =
+      stopReasonRef.current ||
+      (!isStoppingRef.current && wasRecognizing
+        ? RecognitionStopReason.NATURAL_END
+        : RecognitionStopReason.UNKNOWN);
+
+    if (onSpeechRecognitionStopped && !shouldRestart && finalReason) {
+      const duration = sessionStartTime
+        ? Math.floor((Date.now() - sessionStartTime) / 1000)
+        : 0;
+      onSpeechRecognitionStopped({
+        reason: finalReason,
+        sessionDuration: duration,
+        segmentCount: segments.length,
+        sessionId: sessionIdRef.current,
+      });
     }
+
+    stopReasonRef.current = null;
 
     if (shouldRestart) {
       // Auto-restart with exponential backoff
@@ -458,20 +530,33 @@ export function useEnhancedSpeechRecognition(
             isFinal: true,
           };
 
-          setSegments((prev) => [...prev, newSegment]);
-          
+          setSegments((prev) => {
+            const newSegments = [...prev, newSegment];
+
+            // Call onSegmentFinalized callback
+            if (onSegmentFinalized) {
+              onSegmentFinalized(newSegment, newSegments);
+            }
+
+            return newSegments;
+          });
+
           // Call onNewResult callback if provided
           if (onNewResult) {
-            const deltaText = result.transcript.replace(previousTranscriptRef.current, '').trim();
-            const fullTranscript = segments.map(s => s.text).concat(result.transcript).join(' ');
+            const deltaText = result.transcript
+              .replace(previousTranscriptRef.current, "")
+              .trim();
+            const allSegments = [...segments, newSegment];
+            const fullTranscript = allSegments.map((s) => s.text).join(" ");
             onNewResult({
               currentSegment: newSegment,
               deltaText,
               fullTranscript,
               isInterim: false,
+              allSegments,
             });
           }
-          
+
           previousTranscriptRef.current = result.transcript;
           setInterimTranscript("");
           pendingSegmentRef.current = "";
@@ -498,16 +583,22 @@ export function useEnhancedSpeechRecognition(
           }
 
           setInterimTranscript(newText);
-          
+
           // Call onNewResult callback for interim results
           if (onNewResult && newText) {
-            const deltaText = newText.replace(previousTranscriptRef.current, '').trim();
-            const fullTranscript = segments.map(s => s.text).concat(newText).join(' ');
+            const deltaText = newText
+              .replace(previousTranscriptRef.current, "")
+              .trim();
+            const fullTranscript = segments
+              .map((s) => s.text)
+              .concat(newText)
+              .join(" ");
             onNewResult({
               currentSegment: segments[segments.length - 1] || null,
               deltaText,
               fullTranscript,
               isInterim: true,
+              allSegments: segments,
             });
           }
 
@@ -542,7 +633,16 @@ export function useEnhancedSpeechRecognition(
                   isFinal: false, // Mark as non-final since it's from silence detection
                 };
 
-                setSegments((prev) => [...prev, newSegment]);
+                setSegments((prev) => {
+                  const newSegments = [...prev, newSegment];
+
+                  // Call onSegmentFinalized callback for silence-detected segments
+                  if (onSegmentFinalized) {
+                    onSegmentFinalized(newSegment, newSegments);
+                  }
+
+                  return newSegments;
+                });
                 setInterimTranscript("");
 
                 // Update what we've segmented
@@ -563,10 +663,10 @@ export function useEnhancedSpeechRecognition(
       setState(RecognitionState.ERROR);
       setError(errorMessage);
       console.error("[SpeechRecognition] Error:", event.error, event.message);
-      
+
       // Map error to our error code enum
       const errorCode = mapErrorToCode(event.error);
-      
+
       // Call onError callback if provided
       if (onError) {
         const nonRestartableErrors: RecognitionErrorCodeType[] = [
@@ -576,7 +676,7 @@ export function useEnhancedSpeechRecognition(
           RecognitionErrorCode.PERMISSION_DENIED,
           RecognitionErrorCode.NOT_AVAILABLE,
         ];
-        
+
         onError({
           code: errorCode,
           message: event.message,
@@ -676,7 +776,7 @@ export function useEnhancedSpeechRecognition(
           const error = "Microphone permissions not granted";
           setState(RecognitionState.ERROR);
           setError(error);
-          
+
           if (onError) {
             onError({
               code: RecognitionErrorCode.PERMISSION_DENIED,
@@ -684,7 +784,7 @@ export function useEnhancedSpeechRecognition(
               isRecoverable: false,
             });
           }
-          
+
           Alert.alert(
             "Microphone Permission Required",
             "Please grant microphone access in Settings to use speech recognition."
@@ -696,11 +796,15 @@ export function useEnhancedSpeechRecognition(
         ExpoSpeechRecognitionModule.start(ENHANCED_SPEECH_CONFIG);
       })
       .catch((err) => {
-        const errorMessage = err instanceof Error ? err.message : "Failed to start recognition";
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to start recognition";
         setState(RecognitionState.ERROR);
         setError(errorMessage);
-        console.error("[SpeechRecognition] Failed to start speech recognition:", err);
-        
+        console.error(
+          "[SpeechRecognition] Failed to start speech recognition:",
+          err
+        );
+
         if (onError) {
           onError({
             code: RecognitionErrorCode.START_FAILED,
@@ -719,7 +823,7 @@ export function useEnhancedSpeechRecognition(
         "Speech Recognition Unavailable",
         "Speech recognition is not available on this device. Please enable Siri & Dictation in Settings."
       );
-      
+
       if (onError) {
         onError({
           code: RecognitionErrorCode.NOT_AVAILABLE,
@@ -756,18 +860,27 @@ export function useEnhancedSpeechRecognition(
       restartTimeoutRef.current = null;
     }
 
+    // Clear session time to ensure new transcription is created on next start
+    setSessionStartTime(null);
+    setElapsedSeconds(0);
+
     setState(RecognitionState.STOPPING);
     ExpoSpeechRecognitionModule.stop();
   }, []);
 
   const abort = useCallback(() => {
     isStoppingRef.current = true;
+    stopReasonRef.current = RecognitionStopReason.USER_ABORTED;
 
     // Clear any pending restart
     if (restartTimeoutRef.current) {
       clearTimeout(restartTimeoutRef.current);
       restartTimeoutRef.current = null;
     }
+
+    // Clear session time to ensure new transcription is created on next start
+    setSessionStartTime(null);
+    setElapsedSeconds(0);
 
     setState(RecognitionState.IDLE);
     ExpoSpeechRecognitionModule.abort();
@@ -807,6 +920,7 @@ export function useEnhancedSpeechRecognition(
     lastTranscriptRef.current = "";
     pendingSegmentRef.current = "";
     lastSegmentedTextRef.current = "";
+    sessionIdRef.current = "";
   }, [state]);
 
   // Always keep auto-restart enabled, so this function is now a no-op
@@ -871,7 +985,7 @@ export function useEnhancedSpeechRecognition(
     // Volume state
     volumeLevel,
     normalizedVolumeLevel,
-    
+
     // Capabilities
     isAvailable: capabilities.isAvailable,
     supportsOnDevice: capabilities.supportsOnDevice,
