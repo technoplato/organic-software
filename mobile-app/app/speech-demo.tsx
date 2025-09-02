@@ -149,14 +149,12 @@ export default function EnhancedSpeechDemo() {
     recordingUri,
     elapsedSeconds,
     sessionStartTime,
-    autoRestart,
     restartAttempts,
     volumeLevel,
     start,
     stop,
     abort,
     reset,
-    toggleAutoRestart,
     exportTranscript,
   } = useEnhancedSpeechRecognition();
 
@@ -174,7 +172,7 @@ export default function EnhancedSpeechDemo() {
     if (!capabilities?.isAvailable) {
       Alert.alert(
         "Speech Recognition Unavailable",
-        "Speech recognition is not available on this device. Please enable Siri & Dictation in Settings.",
+        "Speech recognition is not available on this device. Please enable Siri & Dictation in Settings."
       );
       return;
     }
@@ -241,6 +239,20 @@ export default function EnhancedSpeechDemo() {
           </Text>
         </View>
 
+        {/* Transcript Segments */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            Transcript Segments ({segments.length})
+          </Text>
+          <View style={styles.transcriptCard}>
+            <SegmentList
+              segments={segments}
+              interimText={interimTranscript}
+              currentTime={currentTime}
+            />
+          </View>
+        </View>
+
         {/* Timer Display */}
         <TimerDisplay
           elapsedSeconds={elapsedSeconds}
@@ -256,11 +268,6 @@ export default function EnhancedSpeechDemo() {
             <Text style={[styles.statusText, { color: getStateColor() }]}>
               {state.toUpperCase()}
             </Text>
-            {autoRestart && restartAttempts > 0 && (
-              <Text style={styles.restartInfo}>
-                Restart: {restartAttempts}/5
-              </Text>
-            )}
           </View>
         </View>
 
@@ -315,17 +322,6 @@ export default function EnhancedSpeechDemo() {
             </TouchableOpacity>
           </View>
 
-          {/* Auto-Restart Toggle */}
-          <View style={styles.toggleContainer}>
-            <Text style={styles.toggleLabel}>Auto-Restart</Text>
-            <Switch
-              value={autoRestart}
-              onValueChange={toggleAutoRestart}
-              trackColor={{ false: "#767577", true: "#10B981" }}
-              thumbColor={autoRestart ? "#ffffff" : "#f4f3f4"}
-            />
-          </View>
-
           {/* Export Button */}
           {segments.length > 0 && (
             <TouchableOpacity
@@ -346,37 +342,6 @@ export default function EnhancedSpeechDemo() {
             </View>
           </View>
         )}
-
-        {/* Transcript Segments */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Transcript Segments ({segments.length})
-          </Text>
-          <View style={styles.transcriptCard}>
-            <SegmentList
-              segments={segments}
-              interimText={interimTranscript}
-              currentTime={currentTime}
-            />
-          </View>
-        </View>
-
-        {/* Info Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Configuration</Text>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoText}>
-              • Continuous Mode: ✅{"\n"}• Auto-Restart:{" "}
-              {autoRestart ? "✅" : "❌"}
-              {"\n"}• Silence Detection: 3 seconds{"\n"}• Extended Timeout:{" "}
-              {Platform.OS === "android" ? "30s" : "iOS Default"}
-              {"\n"}• Platform:{" "}
-              {Platform.OS === "ios" ? "iOS (Siri)" : "Android (Google)"}
-              {"\n"}• Recording: {recordingUri ? "✅ Saved" : "⏺️ Active"}
-              {"\n"}• Segment Creation: Silence or Final Result
-            </Text>
-          </View>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );

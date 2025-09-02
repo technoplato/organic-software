@@ -96,7 +96,6 @@ export interface EnhancedSpeechRecognitionHook {
   sessionStartTime: number | null;
 
   // Auto-restart state
-  autoRestart: boolean;
   restartAttempts: number;
 
   // Volume state
@@ -107,17 +106,14 @@ export interface EnhancedSpeechRecognitionHook {
   stop: () => void;
   abort: () => void;
   reset: () => void;
-  toggleAutoRestart: () => void;
   exportTranscript: () => string;
 }
 
-// Set to a very high number to effectively make it unlimited
-const MAX_RESTART_ATTEMPTS = 999999;
 const RESTART_DELAY_MS = 1000;
 
 export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
   const [state, setState] = useState<RecognitionStateType>(
-    RecognitionState.IDLE,
+    RecognitionState.IDLE
   );
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [interimTranscript, setInterimTranscript] = useState("");
@@ -125,8 +121,6 @@ export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
-  // Always keep auto-restart enabled to work around Apple's 1-minute limitation
-  const [autoRestart, setAutoRestart] = useState(true);
   const [restartAttempts, setRestartAttempts] = useState(0);
   const [volumeLevel, setVolumeLevel] = useState(0);
 
@@ -140,7 +134,7 @@ export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
   const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingSegmentRef = useRef<string>("");
   const lastSegmentedTextRef = useRef<string>(""); // Track what's already been segmented
-  const SILENCE_THRESHOLD_MS = 3000; // 3 seconds of no new words
+  const SILENCE_THRESHOLD_MS = 3000; // 3 seconds of no new words triggers a new segment
 
   // Timer management
   useEffect(() => {
@@ -181,36 +175,35 @@ export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
   useSpeechRecognitionEvent("end", () => {
     const wasRecognizing = state === RecognitionState.RECOGNIZING;
     // Always restart if not explicitly stopped
-    const shouldRestart =
-      autoRestart &&
-      wasRecognizing &&
-      !isStoppingRef.current;
-      // Removed the MAX_RESTART_ATTEMPTS check to allow unlimited restarts
+    const shouldRestart = wasRecognizing && !isStoppingRef.current;
 
     setState(RecognitionState.IDLE);
 
     if (shouldRestart) {
       // Auto-restart with exponential backoff
-      const delay = RESTART_DELAY_MS * Math.pow(2, Math.min(restartAttempts, 5));
+      const delay =
+        RESTART_DELAY_MS * Math.pow(2, Math.min(restartAttempts, 5));
       console.log(
-        `[SpeechRecognition] Auto-restarting in ${delay}ms (attempt ${restartAttempts + 1})`,
+        `[SpeechRecognition] Auto-restarting in ${delay}ms (attempt ${restartAttempts + 1})`
       );
 
       restartTimeoutRef.current = setTimeout(() => {
-        if (autoRestart && !isStoppingRef.current) {
+        if (!isStoppingRef.current) {
           setRestartAttempts((prev) => prev + 1);
-          console.log(`[SpeechRecognition] Executing restart attempt ${restartAttempts + 1}`);
+          console.log(
+            `[SpeechRecognition] Executing restart attempt ${restartAttempts + 1}`
+          );
           startRecognition();
         } else {
           console.log(
-            `[SpeechRecognition] Restart cancelled - autoRestart: ${autoRestart}, isStoppingRef: ${isStoppingRef.current}`
+            `[SpeechRecognition] Restart cancelled - isStoppingRef: ${isStoppingRef.current}`
           );
         }
       }, delay);
     } else if (!isStoppingRef.current) {
       // Recognition ended unexpectedly without auto-restart
       console.log(
-        `[SpeechRecognition] Recognition ended without restart. autoRestart: ${autoRestart}, wasRecognizing: ${wasRecognizing}`,
+        `[SpeechRecognition] Recognition ended without restart. wasRecognizing: ${wasRecognizing}`
       );
     }
 
@@ -304,7 +297,7 @@ export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
           }
         }
       }
-    },
+    }
   );
 
   useSpeechRecognitionEvent(
@@ -320,22 +313,30 @@ export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
         "language-not-supported",
         "service-not-allowed",
       ];
-      
+
       if (nonRestartableErrors.includes(event.error)) {
-        console.log(`[SpeechRecognition] Non-restartable error detected: ${event.error}. Will still attempt to restart.`);
+        console.log(
+          `[SpeechRecognition] Non-restartable error detected: ${event.error}. Will still attempt to restart.`
+        );
         // We don't disable auto-restart even for non-restartable errors
       } else if (event.error === "no-speech") {
         // For "no-speech" errors, reset the attempt counter to keep trying
-        console.log("[SpeechRecognition] No speech detected, resetting attempt counter to continue restarting");
+        console.log(
+          "[SpeechRecognition] No speech detected, resetting attempt counter to continue restarting"
+        );
         setRestartAttempts(0);
       } else if (event.error === "network") {
         // For network errors, use a shorter delay before retrying
-        console.log("[SpeechRecognition] Network error detected, will retry with shorter delay");
+        console.log(
+          "[SpeechRecognition] Network error detected, will retry with shorter delay"
+        );
         // The shorter delay will be applied in the end event handler
       } else {
-        console.log(`[SpeechRecognition] Recoverable error: ${event.error}. Will attempt restart.`);
+        console.log(
+          `[SpeechRecognition] Recoverable error: ${event.error}. Will attempt restart.`
+        );
       }
-    },
+    }
   );
 
   useSpeechRecognitionEvent("audiostart", (event: { uri: string | null }) => {
@@ -372,11 +373,16 @@ export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
     } catch (err) {
       setState(RecognitionState.ERROR);
       setError(
-        err instanceof Error ? err.message : "Failed to start recognition",
+        err instanceof Error ? err.message : "Failed to start recognition"
       );
-      console.error("[SpeechRecognition] Failed to start speech recognition:", err);
+      console.error(
+        "[SpeechRecognition] Failed to start speech recognition:",
+        err
+      );
       // Don't disable auto-restart even on startup errors
-      console.log("[SpeechRecognition] Will attempt to restart despite startup error");
+      console.log(
+        "[SpeechRecognition] Will attempt to restart despite startup error"
+      );
     }
   };
 
@@ -463,7 +469,9 @@ export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
 
   // Always keep auto-restart enabled, so this function is now a no-op
   const toggleAutoRestart = useCallback(() => {
-    console.log("[SpeechRecognition] Auto-restart is always enabled and cannot be disabled");
+    console.log(
+      "[SpeechRecognition] Auto-restart is always enabled and cannot be disabled"
+    );
     // No-op - we always keep auto-restart enabled
   }, []);
 
@@ -515,8 +523,6 @@ export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
     elapsedSeconds,
     sessionStartTime,
 
-    // Auto-restart state
-    autoRestart,
     restartAttempts,
 
     // Volume state
@@ -527,7 +533,6 @@ export function useEnhancedSpeechRecognition(): EnhancedSpeechRecognitionHook {
     stop,
     abort,
     reset,
-    toggleAutoRestart,
     exportTranscript,
   };
 }
