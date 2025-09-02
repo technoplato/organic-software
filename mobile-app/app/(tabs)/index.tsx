@@ -10,7 +10,7 @@ import {
 import { useRouter } from "expo-router";
 import { init } from "@instantdb/react-native";
 import * as Notifications from "expo-notifications";
-import useStyles from "../lib/useStyles";
+import useStyles from "../../lib/useStyles";
 
 // InstantDB configuration
 const db = init({

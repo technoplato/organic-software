@@ -4,11 +4,11 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import net from "node:net";
 import { init, tx, id } from "@instantdb/node";
 import { execSync } from "node:child_process";
-import { logger } from './lib/logger';
+import { logger } from "./lib/logger";
 import * as dotenv from "dotenv";
 
 // Load environment variables
-dotenv.config({ path: './config/.env' });
+dotenv.config({ path: "./config/.env" });
 
 const APP_ID =
   process.env.INSTANTDB_APP_ID ||
@@ -50,9 +50,9 @@ class Supervisor {
   private handlerExitTimes: number[] = [];
   private crashWindowMs = 60_000;
   private crashThreshold = 3;
-  private enableGit = process.env.SUPERVISOR_ENABLE_GIT === "1";
-  private gitRecovery: "stash" | "reset" =
-    (process.env.SUPERVISOR_GIT_RECOVERY as any) || "stash";
+  // // private enableGit = process.env.SUPERVISOR_ENABLE_GIT === "1";
+  // // private gitRecovery: "stash" | "reset" =
+  //   (process.env.SUPERVISOR_GIT_RECOVERY as any) || "stash";
   private lastExpoErrorSig: string | null = null;
   private lastExpoErrorAt = 0;
   private expoPort: number | null = null;
@@ -69,7 +69,7 @@ class Supervisor {
     // Check for bundle errors every 10 seconds
     this.bundleCheckInterval = setInterval(
       () => this.checkBundleForErrors(),
-      10000,
+      10000
     ) as any;
     process.on("SIGINT", () => this.stop());
   }
@@ -228,7 +228,7 @@ class Supervisor {
       const res = await withTimeout(
         this.db.queryOnce({ heartbeats: {} }),
         1500,
-        "heartbeats query",
+        "heartbeats query"
       );
       const beats = res.data?.heartbeats || [];
       const now = Date.now();
@@ -240,7 +240,7 @@ class Supervisor {
         await this.logToDb(
           "health",
           "Host heartbeat stale, handler restarted",
-          { lastSeenAt: hostBeat?.lastSeenAt },
+          { lastSeenAt: hostBeat?.lastSeenAt }
         );
       }
     } catch (err) {
@@ -274,7 +274,7 @@ class Supervisor {
           }),
         ]),
         2000,
-        "logToDb transact",
+        "logToDb transact"
       );
     } catch {}
   }
@@ -284,7 +284,7 @@ class Supervisor {
       // Check if Zscaler routes are present in routing table
       const result = execSync(
         'netstat -rn | grep -E "165\\.225\\.|104\\.129\\."',
-        { encoding: "utf8" },
+        { encoding: "utf8" }
       );
       return result.length > 0;
     } catch {
@@ -327,7 +327,7 @@ class Supervisor {
   private handleZscalerError(): void {
     if (this.zscalerCheckAttempts >= this.maxZscalerAttempts) {
       console.log(
-        "⚠️ Max Zscaler disable attempts reached. Please manually disable Zscaler.",
+        "⚠️ Max Zscaler disable attempts reached. Please manually disable Zscaler."
       );
       return;
     }
@@ -340,7 +340,7 @@ class Supervisor {
           this.zscalerCheckAttempts +
           "/" +
           this.maxZscalerAttempts +
-          ")",
+          ")"
       );
 
       if (this.disableZscaler()) {
@@ -356,7 +356,7 @@ class Supervisor {
       }
     } else {
       console.log(
-        "ℹ️ Zscaler appears to be inactive, but fetch is still failing",
+        "ℹ️ Zscaler appears to be inactive, but fetch is still failing"
       );
       // Reset counter since Zscaler isn't the issue
       this.zscalerCheckAttempts = 0;
@@ -436,7 +436,7 @@ class Supervisor {
           (tx as any).errors[errorId].update(errorData),
         ]),
         2000,
-        "dispatchError transact",
+        "dispatchError transact"
       );
     } catch (err) {
       console.error("❌ Failed to dispatch error:", err);
@@ -480,7 +480,7 @@ class Supervisor {
     try {
       // Fetch the iOS bundle to check for errors
       const response = await fetch(
-        `http://localhost:${this.expoPort}/index.ts.bundle?platform=ios&dev=true`,
+        `http://localhost:${this.expoPort}/index.ts.bundle?platform=ios&dev=true`
       );
       const text = await response.text();
 
@@ -515,7 +515,7 @@ class Supervisor {
               "📍 Error location:",
               errorData.filename,
               "line",
-              errorData.lineNumber,
+              errorData.lineNumber
             );
 
             // Dispatch to Claude
@@ -532,22 +532,25 @@ class Supervisor {
   }
 
   private recoverFromCrashes() {
-    if (!this.enableGit) {
-      console.log("ℹ️ Git recovery disabled (SUPERVISOR_ENABLE_GIT!=1)");
-      return;
-    }
-    console.log(`🔧 Running git recovery strategy: ${this.gitRecovery}`);
-    try {
-      spawnSync("git", ["status", "--porcelain"], { stdio: "inherit" });
-    } catch {}
-    try {
-      if (this.gitRecovery === "stash")
-        spawnSync("git", ["stash", "-u"], { stdio: "inherit" });
-      else if (this.gitRecovery === "reset")
-        spawnSync("git", ["reset", "--hard", "HEAD"], { stdio: "inherit" });
-    } catch (e) {
-      console.warn("⚠️ Git recovery failed", e);
-    }
+    console.log(
+      "omg i cant believe I let an ai stash my code that was so annoying"
+    );
+    // if (!this.enableGit) {
+    //   console.log("ℹ️ Git recovery disabled (SUPERVISOR_ENABLE_GIT!=1)");
+    //   return;
+    // }
+    // console.log(`🔧 Running git recovery strategy: ${this.gitRecovery}`);
+    // try {
+    //   spawnSync("git", ["status", "--porcelain"], { stdio: "inherit" });
+    // } catch {}
+    // try {
+    //   if (this.gitRecovery === "stash")
+    //     spawnSync("git", ["stash", "-u"], { stdio: "inherit" });
+    //   else if (this.gitRecovery === "reset")
+    //     spawnSync("git", ["reset", "--hard", "HEAD"], { stdio: "inherit" });
+    // } catch (e) {
+    //   console.warn("⚠️ Git recovery failed", e);
+    // }
   }
 }
 
@@ -556,7 +559,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, label = "op"): Promise<T> {
   return new Promise((resolve, reject) => {
     const t = setTimeout(
       () => reject(new Error(`Timeout ${ms}ms: ${label}`)),
-      ms,
+      ms
     );
     p.then(
       (v) => {
@@ -566,7 +569,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, label = "op"): Promise<T> {
       (e) => {
         clearTimeout(t);
         reject(e);
-      },
+      }
     );
   });
 }
@@ -606,7 +609,7 @@ function main() {
         "--exec",
         "npx tsx ../supervisor.ts",
       ],
-      { stdio: "inherit", env },
+      { stdio: "inherit", env }
     );
     p.on("exit", (code) => process.exit(code ?? 0));
     return;

@@ -102,35 +102,6 @@ export function configureLogger(newConfig: Partial<LoggerConfig>) {
 function getCallsiteInfo() {
   const sites = callsites();
 
-  // Debug: Print ALL available information from each callsite in JSON format
-  console.log("\n=== CALLSITES DEBUG INFO ===");
-  sites.forEach((site, index) => {
-    const siteInfo = {
-      index,
-      fileName: site.getFileName(),
-      lineNumber: site.getLineNumber(),
-      columnNumber: site.getColumnNumber(),
-      functionName: site.getFunctionName(),
-      methodName: site.getMethodName(),
-      typeName: site.getTypeName(),
-      evalOrigin: site.getEvalOrigin(),
-      isConstructor: site.isConstructor(),
-      isEval: site.isEval(),
-      isNative: site.isNative(),
-      isToplevel: site.isToplevel(),
-      // Try to get the 'this' value (might be undefined)
-      thisValue:
-        typeof site.getThis === "function" ? String(site.getThis()) : undefined,
-      // Get the function if available
-      function:
-        typeof site.getFunction === "function"
-          ? String(site.getFunction()).substring(0, 100)
-          : undefined,
-    };
-    // console.log(JSON.stringify(siteInfo, null, 2));
-  });
-  // console.log('=== END CALLSITES DEBUG ===\n');
-
   // Find the first callsite that's not from the logger module
   let userCallsite = null;
   for (const site of sites) {
@@ -153,10 +124,10 @@ function getCallsiteInfo() {
   if (!userCallsite) return "";
 
   const file = getRelativePath(userCallsite.getFileName());
-  const line = userCallsite.getLineNumber();
   const func = userCallsite.getFunctionName();
 
-  return `${file}#${line}#${func}`;
+  // Return just the file and function name, without line number
+  return func ? `${file}#${func}` : file;
 }
 
 function shouldLog(level: LogLevel) {
