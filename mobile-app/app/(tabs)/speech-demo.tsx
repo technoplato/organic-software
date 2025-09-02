@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -6,16 +6,13 @@ import {
   ScrollView,
   StyleSheet,
   SafeAreaView,
-  Alert,
   Share,
 } from "react-native";
 import {
   useEnhancedSpeechRecognition,
   type TranscriptSegment,
   RecognitionStopReason,
-  type RecognitionStopReasonType,
 } from "../../lib/enhanced-speech-recognition";
-import { checkSpeechRecognitionAvailability } from "../../lib/speech-recognition";
 import { useStyles } from "../../lib/useStyles";
 
 // Timer Display Component
@@ -85,7 +82,6 @@ function SegmentList({
         >
           <View style={styles.segmentHeader}>
             <Text style={styles.segmentTime}>{segment.formattedTimestamp}</Text>
-            {!segment.isFinal && <Text style={styles.segmentBadge}>Auto</Text>}
           </View>
           <Text style={styles.segmentText}>{segment.text}</Text>
         </View>
